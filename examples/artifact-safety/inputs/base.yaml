@@ -1,0 +1,10 @@
+name: artifact-safety
+pipeline:
+  dataset:
+    _include_: ./dataset.yaml
+  service:
+    endpoint: ${oc.env:WEAVE_ARTIFACT_SAFETY_ENDPOINT,https://example.invalid/api}
+    api_token: ${oc.env:WEAVE_ARTIFACT_SAFETY_TOKEN}
+  output:
+    root: ${oc.env:WEAVE_ARTIFACT_SAFETY_OUTPUT,/tmp/weave-artifact-safety}
+

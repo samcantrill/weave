@@ -1,0 +1,21 @@
+.PHONY: help
+
+help:
+	@printf 'weave development targets\n'
+	@printf '\n'
+	@printf 'Setup:\n'
+	@printf '  make install          Sync dependencies with uv\n'
+	@printf '\n'
+	@printf 'Checks:\n'
+	@printf '  make lint             Run Ruff checks\n'
+	@printf '  make typecheck        Run Pyright\n'
+	@printf '  make format           Format Python files with Ruff\n'
+	@printf '  make validate-pr      Run lint, typecheck, tests, examples, and build\n'
+	@printf '\n'
+	@printf 'Tests:\n'
+	@printf '  make test             Run package, unit, contract, and integration tests\n'
+	@printf '  make test-examples    Run executable examples\n'
+	@printf '  make test-summary     Write build/test-summary.md\n'
+	@printf '\n'
+	@printf 'Packaging:\n'
+	@printf '  make build            Build source and wheel distributions\n'
