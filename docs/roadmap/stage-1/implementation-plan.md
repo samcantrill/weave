@@ -5,7 +5,7 @@ Roadmap stage: `v1`
 Planning document: `docs/roadmap/stage-1/planning.md`
 Workflow: `.codex/workflows/roadmap-stage-implementation.md`
 Target branch: `develop`
-Current phase: Phase 3 merged; Phase 4 pending
+Current phase: Phase 4 PR open; CI pending
 Blockers: none
 
 ## Summary
@@ -231,7 +231,7 @@ The interfaces are intentionally generic:
 | 1 | `stage-1-commandless-contracts` | merged | `codex/stage-1-commandless-contracts` | https://github.com/samcantrill/weave/pull/1 | `src/weave/api.py`, `src/weave/_argv.py`, `src/weave/__init__.py`, `tests/unit/config/`, `tests/integration/config/`, import tests | Add commandless parser, `ConfigEntrypoint`, preferred commandless helpers, fixed-base compose/inspect, result records, export policy, and migration diagnostics. | `make test-unit`, `make test-integration`, package import tests, commandless result-shape tests. | None yet; docs/examples in Phase 4. |
 | 2 | `stage-1-base-resolution` | merged | `codex/stage-1-base-resolution` | https://github.com/samcantrill/weave/pull/2 | `src/weave/api.py`, resolver tests | Add generic base resolver request/resolution and metadata boundaries. | Unit/integration tests for resolver success/failure and serialization boundaries. | Resolver example draft only if useful; final docs in Phase 4. |
 | 3 | `stage-1-selected-instantiation` | merged | `codex/stage-1-selected-instantiation` | https://github.com/samcantrill/weave/pull/3 | `src/weave/api.py`, instantiation integration tests | Add selected dot-path instantiation and object/result separation. | Unit/integration tests for selectors, runtime injection, non-target values, and no-import default. | Example draft only if useful; final docs in Phase 4. |
-| 4 | `stage-1-docs-hardening` | pending | `codex/stage-1-docs-hardening` | pending | `docs/`, `examples/`, example tests, migrated argv docs/tests | Align docs, examples, behavior matrix, README snippets, and migration notes. | Example harness, docs review, focused tests, and `make validate-pr` if available. | Project-owned adapter, resolver, selected instantiation, migration diagnostics. |
+| 4 | `stage-1-docs-hardening` | pr_open | `codex/stage-1-docs-hardening` | https://github.com/samcantrill/weave/pull/4 | `docs/`, `examples/`, example tests, migrated argv docs/tests | Align docs, examples, behavior matrix, README snippets, and migration notes. | Example harness, docs review, focused tests, and `make validate-pr` if available. | Project-owned adapter, resolver, selected instantiation, migration diagnostics. |
 
 ## Implementation Readiness Blockers
 
@@ -537,19 +537,19 @@ Workflow path: expanded path
 
 ### Completion Summary
 
-- Implementation: pending
-- Validation: pending
-- PR: pending
-- Merge: pending
-- Follow-up: pending
+- Implementation: completed and merged for selected dot-path instantiation, runtime injection, object/result separation, and inert default compose/inspect behavior.
+- Validation: `make validate-pr`, `make test-summary`, focused Phase 3 tests, and GitHub `CI/checks (pull_request)` passed.
+- PR: https://github.com/samcantrill/weave/pull/3 merged into `develop`.
+- Merge: `df0e63b16f3c227f20371d4568bb4c3fdfb62bc9`; post-merge metadata commit `0ca7c8e`.
+- Follow-up: Phase 4 docs, examples, and behavior-matrix hardening.
 
 ## Phase 4: Docs, Examples, And Hardening
 
-Status: pending
+Status: pr_open
 Slug: `stage-1-docs-hardening`
 Branch: `codex/stage-1-docs-hardening`
 Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-docs-hardening`
-PR: https://github.com/samcantrill/weave/pull/1
+PR: https://github.com/samcantrill/weave/pull/4
 Base branch: `develop`
 Target branch: `develop`
 Workflow path: expanded path
@@ -614,15 +614,18 @@ Workflow path: expanded path
   README snippets are aligned.
 - Domain-neutrality evidence: examples avoid project-specific schemas, stages,
   datasets, metrics, reports, schedulers, and stores.
+- Local validation evidence: `make test-examples`, focused docs scans,
+  `make validate-pr`, and `make test-summary` passed; summary recorded
+  package 28, unit 290, contract 33, integration 96, and examples 9.
 
 ### Phase Workflow State
 
-- Phase execution plan: pending
-- Planning/refinement budget: pending
-- Implementation/refinement budget: pending
-- PR review budget: pending
-- Blocker-resolution budget: pending
-- Pre-submit blocker gate: Phases 1 through 3 merged
+- Phase execution plan: completed in `docs/roadmap/stage-1/phases/stage-1-docs-hardening.md`
+- Planning/refinement budget: completed; no additional planning loop used
+- Implementation/refinement budget: completed locally; no blocker loop used
+- PR review budget: active; PR opened and CI pending
+- Blocker-resolution budget: 0/3 used
+- Pre-submit blocker gate: Phases 1 through 3 merged; local validation passed
 - Merge record: pending
 
 ### Risks And Stop Conditions
@@ -636,11 +639,11 @@ Workflow path: expanded path
 
 ### Completion Summary
 
-- Implementation: pending
-- Validation: pending
-- PR: pending
+- Implementation: completed locally for public docs, runnable adapter example, behavior matrix, and example coverage docs.
+- Validation: `make test-examples`, focused docs scans, `make validate-pr`, and `make test-summary` passed.
+- PR: https://github.com/samcantrill/weave/pull/4
 - Merge: pending
-- Follow-up: pending
+- Follow-up: pending PR CI and merge.
 
 ## Cross-Phase Validation
 
