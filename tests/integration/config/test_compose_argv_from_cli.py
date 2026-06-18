@@ -1,4 +1,4 @@
-"""Integration coverage for public argv config helpers."""
+"""Integration coverage for public commandless config-arg helpers."""
 
 from __future__ import annotations
 
@@ -8,8 +8,14 @@ from typing import Any, cast
 
 import pytest
 
-from weave import RecipeCatalog, compose_config_from_argv
-from weave.api import ConfigArgvCompositionResult, ConfigArgvInspectionResult, inspect_config_from_argv
+from weave import ConfigEntrypoint, RecipeCatalog, compose_config_from_args, compose_config_from_argv
+from weave.api import (
+    ConfigArgsCompositionResult,
+    ConfigArgsInspectionResult,
+    ConfigBaseRequest,
+    ConfigBaseResolution,
+    inspect_config_args,
+)
 from weave.errors import ConfigLoadError, ConfigMergeError, ConfigValidationError
 from weave.plain import PlainData
 
@@ -25,11 +31,11 @@ def _mapping(value: object) -> dict[str, PlainData]:
     return cast(dict[str, PlainData], value)
 
 
-def _source_artifact_payloads(result: ConfigArgvCompositionResult) -> list[dict[str, Any]]:
+def _source_artifact_payloads(result: ConfigArgsCompositionResult) -> list[dict[str, Any]]:
     return [cast(dict[str, Any], record.to_dict()) for record in result.composed_config.source_artifacts]
 
 
-def test_compose_config_from_argv_returns_result_records_and_composes_scoped_overlays(tmp_path: Path) -> None:
+def test_compose_config_from_args_returns_result_records_and_composes_scoped_overlays(tmp_path: Path) -> None:
     base = _write(
         tmp_path / "configs" / "base.yaml",
         "data:\n  keyA: baseA\n  keyB: baseB\nmodel:\n  name: base\n  keep: true\n",
@@ -38,26 +44,23 @@ def test_compose_config_from_argv_returns_result_records_and_composes_scoped_ove
     _write(tmp_path / "configs" / "model" / "model_B.yaml", "_replace_: true\nname: overlay\n")
     _write(tmp_path / "configs" / "runtime_local.yaml", "kind: local\n")
 
-    result = compose_config_from_argv(
+    result = compose_config_from_args(
+        base,
         [
-            "run",
-            str(base),
             "data/=data_A",
             "model/=model_B",
             "+runtime/=runtime_local",
             "+data.keyD=final",
             "--dry-run",
         ],
-        command_choices={"run"},
         allow_unparsed=True,
     )
 
-    assert isinstance(result, ConfigArgvCompositionResult)
-    assert result.command == "run"
+    assert isinstance(result, ConfigArgsCompositionResult)
     assert result.base_config_path == str(base)
-    assert result.value_overrides == result.parsed_argv.value_overrides
-    assert result.scoped_overlays == result.parsed_argv.scoped_overlays
-    assert result.unparsed_args == result.parsed_argv.unparsed_args
+    assert result.value_overrides == result.parsed_args.value_overrides
+    assert result.scoped_overlays == result.parsed_args.scoped_overlays
+    assert result.unparsed_args == result.parsed_args.unparsed_args
     assert result.unparsed_args[0].raw == "--dry-run"
     assert result.warnings == ()
 
@@ -75,31 +78,84 @@ def test_compose_config_from_argv_returns_result_records_and_composes_scoped_ove
     assert metadata["argv_scoped_overlay_count"] == 3
 
     payload = result.to_dict()
-    assert payload["command"] == "run"
-    assert cast(dict[str, Any], payload["parsed_argv"])["unparsed_args"] == [{"raw": "--dry-run", "order": 6}]
+    assert "command" not in payload
+    assert "parsed_argv" not in payload
+    assert cast(dict[str, Any], payload["parsed_args"])["unparsed_args"] == [{"raw": "--dry-run", "order": 4}]
     assert cast(dict[str, Any], payload["composed_config"])["resolved"] == result.composed_config.resolved
 
 
-def test_compose_config_from_argv_defaults_to_sys_argv_tail(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_config_entrypoint_uses_explicit_config_args(tmp_path: Path) -> None:
     base = _write(tmp_path / "configs" / "base.yaml", "data:\n  value: base\n")
-    monkeypatch.setattr("sys.argv", ["project-cli", "run", str(base), "data.value=from-sys-argv"])
 
-    result = compose_config_from_argv(command_choices={"run"})
+    result = ConfigEntrypoint(base_config_path=base).compose_args(["data.value=from-entrypoint"])
 
-    assert result.command == "run"
     assert result.base_config_path == str(base)
-    assert result.composed_config.resolved["data"] == {"value": "from-sys-argv"}
+    assert result.composed_config.resolved["data"] == {"value": "from-entrypoint"}
 
 
-def test_inspect_config_from_argv_exposes_argv_stage_even_without_overlays(tmp_path: Path) -> None:
+def test_config_entrypoint_fixed_base_serializes_empty_base_details(tmp_path: Path) -> None:
     base = _write(tmp_path / "configs" / "base.yaml", "data:\n  value: base\n")
 
-    result = inspect_config_from_argv(["inspect", str(base)], command_choices={"inspect"})
+    result = ConfigEntrypoint(base_config_path=base).compose_args()
 
-    assert isinstance(result, ConfigArgvInspectionResult)
+    assert result.base_details == ()
+    payload = result.to_dict()
+    assert payload["base_details"] == []
+    assert "base_context" not in json.dumps(payload, sort_keys=True)
+
+
+def test_config_entrypoint_base_resolver_selects_base_and_serializes_explicit_details(tmp_path: Path) -> None:
+    _write(tmp_path / "configs" / "default.yaml", "data:\n  value: default\n")
+    selected_base = _write(tmp_path / "configs" / "profiles" / "dev.yaml", "data:\n  value: selected\n")
+    context = {"profile": "dev", "opaque_token": "do-not-serialize"}
+    requests: list[ConfigBaseRequest] = []
+
+    def resolver(request: ConfigBaseRequest) -> ConfigBaseResolution:
+        requests.append(request)
+        return ConfigBaseResolution(
+            base_config_path=selected_base,
+            details={"strategy": "profile", "profile": "dev"},
+        )
+
+    entrypoint = ConfigEntrypoint(base_resolver=resolver, base_context=context)
+
+    result = entrypoint.compose_args(["data.value=from-resolver"])
+
+    assert requests[0].base_context is context
+    assert result.base_config_path == str(selected_base)
+    assert result.base_details == ({"strategy": "profile", "profile": "dev"},)
+    assert result.composed_config.resolved["data"] == {"value": "from-resolver"}
+    payload = result.to_dict()
+    assert payload["base_details"] == [{"strategy": "profile", "profile": "dev"}]
+    payload_text = json.dumps(payload, sort_keys=True)
+    assert "base_context" not in payload_text
+    assert "opaque_token" not in payload_text
+
+    inspection = entrypoint.inspect_args(["data.value=from-inspect"])
+
+    assert requests[1].base_context is context
+    assert inspection.base_details == ({"strategy": "profile", "profile": "dev"},)
+    assert inspection.inspection.resolved["data"] == {"value": "from-inspect"}
+    assert inspection.to_dict()["base_details"] == [{"strategy": "profile", "profile": "dev"}]
+
+
+def test_compose_config_from_argv_routes_base_first_commandless_shape(tmp_path: Path) -> None:
+    base = _write(tmp_path / "configs" / "base.yaml", "data:\n  value: base\n")
+
+    result = compose_config_from_argv([str(base), "data.value=from-retained"])
+
+    assert isinstance(result, ConfigArgsCompositionResult)
+    assert result.base_config_path == str(base)
+    assert result.composed_config.resolved["data"] == {"value": "from-retained"}
+    assert "command" not in result.to_dict()
+
+
+def test_inspect_config_args_exposes_scoped_overlay_stage_even_without_overlays(tmp_path: Path) -> None:
+    base = _write(tmp_path / "configs" / "base.yaml", "data:\n  value: base\n")
+
+    result = inspect_config_args(base)
+
+    assert isinstance(result, ConfigArgsInspectionResult)
     stage_names = tuple(stage.name for stage in result.inspection.stages)
     stage = result.inspection.stage("argv_scoped_overlays")
     assert stage is not None
@@ -108,18 +164,18 @@ def test_inspect_config_from_argv_exposes_argv_stage_even_without_overlays(tmp_p
     assert result.to_composed_config().resolved == result.inspection.resolved
 
 
-def test_compose_config_from_argv_warnings_are_helper_local_and_artifact_free(tmp_path: Path) -> None:
+def test_compose_config_from_args_warnings_are_helper_local_and_artifact_free(tmp_path: Path) -> None:
     base = _write(tmp_path / "configs" / "base.yaml", "model:\n  name: base\noutput_dir: results/model_B.yaml\n")
     _write(tmp_path / "configs" / "model" / "model_B.yaml", "name: overlay\n")
 
-    result = compose_config_from_argv(["run", str(base), "model=model_B", "output_dir=results/model_B.yaml"])
+    result = compose_config_from_args(base, ["model=model_B", "output_dir=results/model_B.yaml"])
 
     assert result.composed_config.resolved["model"] == "model_B"
     assert result.composed_config.resolved["output_dir"] == "results/model_B.yaml"
     assert len(result.warnings) == 1
     warning = result.warnings[0]
     assert warning.code == "possible_missing_scoped_overlay_slash"
-    assert warning.source_order == 2
+    assert warning.source_order == 0
     assert warning.token == "model=model_B"
     assert warning.path == "model"
     assert cast(str, warning.details["rhs"]) == "model_B"
@@ -138,12 +194,13 @@ def test_compose_config_from_argv_warnings_are_helper_local_and_artifact_free(tm
     assert "possible_missing_scoped_overlay_slash" not in artifact_payload
 
 
-def test_compose_config_from_argv_preserves_raw_snapshot_opt_in_for_scoped_overlays(tmp_path: Path) -> None:
+def test_compose_config_from_args_preserves_raw_snapshot_opt_in_for_scoped_overlays(tmp_path: Path) -> None:
     base = _write(tmp_path / "configs" / "base.yaml", "data:\n  value: base\n")
     overlay = _write(tmp_path / "configs" / "data" / "data_A.yaml", "value: overlay\n")
 
-    result = compose_config_from_argv(
-        ["run", str(base), "data/=data_A"],
+    result = compose_config_from_args(
+        base,
+        ["data/=data_A"],
         include_raw_source_snapshots=True,
     )
 
@@ -156,7 +213,7 @@ def test_compose_config_from_argv_preserves_raw_snapshot_opt_in_for_scoped_overl
     assert payloads[payload_id].content == "value: overlay\n"
 
 
-def test_compose_config_from_argv_applies_scoped_overlays_before_recipes_and_overrides_after(tmp_path: Path) -> None:
+def test_compose_config_from_args_applies_scoped_overlays_before_recipes_and_overrides_after(tmp_path: Path) -> None:
     def echo_recipe(value: str) -> dict[str, str]:
         return {"resolved": value}
 
@@ -165,39 +222,49 @@ def test_compose_config_from_argv_applies_scoped_overlays_before_recipes_and_ove
     base = _write(tmp_path / "configs" / "base.yaml", "pipeline:\n  _recipe_: echo\n  value: base\n")
     _write(tmp_path / "configs" / "pipeline" / "pipeline_A.yaml", "value: overlay\n")
 
-    result = compose_config_from_argv(
-        ["run", str(base), "pipeline/=pipeline_A", "pipeline.resolved=final"],
+    result = compose_config_from_args(
+        base,
+        ["pipeline/=pipeline_A", "pipeline.resolved=final"],
         recipe_catalog=catalog,
     )
 
     assert result.composed_config.resolved["pipeline"] == {"resolved": "final"}
 
 
-def test_compose_config_from_argv_structured_errors(tmp_path: Path) -> None:
+def test_commandless_helper_structured_errors_and_retained_migration_diagnostics(tmp_path: Path) -> None:
     base = _write(tmp_path / "configs" / "base.yaml", "data:\n  value: base\nleaf: value\n")
     _write(tmp_path / "configs" / "data" / "bad.yaml", "- not\n- mapping\n")
     _write(tmp_path / "configs" / "leaf" / "child" / "overlay.yaml", "value: overlay\n")
 
-    with pytest.raises(ConfigValidationError) as unknown:
-        compose_config_from_argv(["serve", str(base)], command_choices={"run"})
-    assert unknown.value.context is not None
-    assert unknown.value.context.code == "unknown_command"
-    assert unknown.value.context.source_kind == "argv"
+    with pytest.raises(ConfigValidationError) as legacy:
+        compose_config_from_argv(["run", str(base), "data.value=legacy"])
+    assert legacy.value.context is not None
+    assert legacy.value.context.code == "command_first_argv_migration"
+    assert legacy.value.context.source_kind == "argv"
+    assert legacy.value.context.details is not None
+    assert legacy.value.context.details["legacy_shape"] == "<command> <base-config> ..."
+
+    with pytest.raises(ConfigValidationError) as unsupported_choices:
+        compose_config_from_argv([str(base), "data.value=next"], command_choices={"run"})
+    assert unsupported_choices.value.context is not None
+    assert unsupported_choices.value.context.code == "unsupported_command_choices"
 
     with pytest.raises(ConfigValidationError) as missing:
-        compose_config_from_argv(["run", str(base), "missing/=overlay"])
+        compose_config_from_args(base, ["missing/=overlay"])
     assert missing.value.context is not None
     assert missing.value.context.code == "missing_scoped_overlay_source"
+    assert missing.value.context.source_kind == "config_args"
     assert missing.value.context.details is not None
     assert "candidate_paths" in missing.value.context.details
+    assert "command" not in missing.value.context.details
 
     with pytest.raises(ConfigLoadError) as bad_source:
-        compose_config_from_argv(["run", str(base), "data/=bad"])
+        compose_config_from_args(base, ["data/=bad"])
     assert bad_source.value.context is not None
     assert bad_source.value.context.code == "scoped_overlay_root_not_mapping"
     assert bad_source.value.context.source_kind == "argv_scoped_overlay"
 
     with pytest.raises(ConfigMergeError) as bad_target:
-        compose_config_from_argv(["run", str(base), "+leaf/child/=overlay"])
+        compose_config_from_args(base, ["+leaf/child/=overlay"])
     assert bad_target.value.context is not None
     assert bad_target.value.context.code == "non_mapping_scoped_overlay_parent"
