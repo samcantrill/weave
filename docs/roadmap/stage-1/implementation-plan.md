@@ -5,7 +5,7 @@ Roadmap stage: `v1`
 Planning document: `docs/roadmap/stage-1/planning.md`
 Workflow: `.codex/workflows/roadmap-stage-implementation.md`
 Target branch: `develop`
-Current phase: Phase 2 implementation complete; PR pending
+Current phase: Phase 2 PR open; awaiting CI
 Blockers: none
 
 ## Summary
@@ -229,7 +229,7 @@ The interfaces are intentionally generic:
 | Phase | Slug | Status | Branch | PR | Ownership | Goal | Validation | Examples |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `stage-1-commandless-contracts` | merged | `codex/stage-1-commandless-contracts` | https://github.com/samcantrill/weave/pull/1 | `src/weave/api.py`, `src/weave/_argv.py`, `src/weave/__init__.py`, `tests/unit/config/`, `tests/integration/config/`, import tests | Add commandless parser, `ConfigEntrypoint`, preferred commandless helpers, fixed-base compose/inspect, result records, export policy, and migration diagnostics. | `make test-unit`, `make test-integration`, package import tests, commandless result-shape tests. | None yet; docs/examples in Phase 4. |
-| 2 | `stage-1-base-resolution` | in_progress | `codex/stage-1-base-resolution` | pending | `src/weave/api.py`, resolver tests | Add generic base resolver request/resolution and metadata boundaries. | Unit/integration tests for resolver success/failure and serialization boundaries. | Resolver example draft only if useful; final docs in Phase 4. |
+| 2 | `stage-1-base-resolution` | pr_open | `codex/stage-1-base-resolution` | https://github.com/samcantrill/weave/pull/2 | `src/weave/api.py`, resolver tests | Add generic base resolver request/resolution and metadata boundaries. | Unit/integration tests for resolver success/failure and serialization boundaries. | Resolver example draft only if useful; final docs in Phase 4. |
 | 3 | `stage-1-selected-instantiation` | pending | `codex/stage-1-selected-instantiation` | pending | `src/weave/api.py`, instantiation integration tests | Add selected dot-path instantiation and object/result separation. | Unit/integration tests for selectors, runtime injection, non-target values, and no-import default. | Example draft only if useful; final docs in Phase 4. |
 | 4 | `stage-1-docs-hardening` | pending | `codex/stage-1-docs-hardening` | pending | `docs/`, `examples/`, example tests, migrated argv docs/tests | Align docs, examples, behavior matrix, README snippets, and migration notes. | Example harness, docs review, focused tests, and `make validate-pr` if available. | Project-owned adapter, resolver, selected instantiation, migration diagnostics. |
 
@@ -360,11 +360,11 @@ Workflow path: expanded path
 
 ## Phase 2: Base Resolution And Config-Arg Policies
 
-Status: in_progress
+Status: pr_open
 Slug: `stage-1-base-resolution`
 Branch: `codex/stage-1-base-resolution`
 Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-base-resolution`
-PR: pending
+PR: https://github.com/samcantrill/weave/pull/2
 Base branch: `develop`
 Target branch: `develop`
 Workflow path: expanded path
@@ -431,7 +431,7 @@ Workflow path: expanded path
 - Implementation/refinement budget: unused
 - PR review budget: unused
 - Blocker-resolution budget: 0/3 used
-- Pre-submit blocker gate: satisfied locally; PR preparation pending
+- Pre-submit blocker gate: satisfied locally; PR #2 opened against `develop`
 - Merge record: pending
 
 ### Risks And Stop Conditions
@@ -446,8 +446,8 @@ Workflow path: expanded path
 
 - Implementation: completed locally for resolver request/resolution records, exact-one base strategy validation, resolver compose/inspect flow, commandless `base_details` result metadata, structured diagnostics, detailed API export policy, and focused tests.
 - Validation: focused Phase 2 tests passed; `make validate-pr` passed; `make test-summary` completed with package 28, unit 285, contract 32, integration 93, and examples 9 passing.
-- PR: pending.
-- Merge: pending.
+- PR: https://github.com/samcantrill/weave/pull/2 targeting `develop`.
+- Merge: pending CI and workflow merge gate.
 - Follow-up: Phase 3 selected instantiation remains pending after Phase 2 merge.
 
 ## Phase 3: Optional Selected Instantiation

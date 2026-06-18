@@ -2,9 +2,10 @@
 
 ## Metadata
 
-- Status: implementation complete; PR pending
+- Status: PR open; CI pending
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 2: Base resolution and metadata boundaries`
+- PR: https://github.com/samcantrill/weave/pull/2
 - Branch: `codex/stage-1-base-resolution`
 - Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-base-resolution`
 - Phase execution plan path: `docs/roadmap/stage-1/phases/stage-1-base-resolution.md`
@@ -200,6 +201,6 @@ make test-summary
 - Implementation validation: focused Phase 2 tests passed; `make validate-pr` passed; `make test-summary` completed with package 28, unit 285, contract 32, integration 93, and examples 9 passing.
 - Refinement summary: narrowed `base_details` to commandless result records only and fixed pyright narrowing for resolver paths/details.
 - Blocker-resolution summary: 0/3 used; no blockers.
-- PR preparation: PR body drafted in `docs/roadmap/stage-1/phases/stage-1-base-resolution-pr-body.md`; PR pending.
+- PR preparation: PR body drafted in `docs/roadmap/stage-1/phases/stage-1-base-resolution-pr-body.md`; PR #2 opened against `develop`.
 - Stack maintenance: branch is based on `develop`; no successor branches exist yet.
 - Remaining blockers: none
