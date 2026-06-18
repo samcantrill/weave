@@ -9,7 +9,13 @@ from typing import Any, cast
 import pytest
 
 from weave import ConfigEntrypoint, RecipeCatalog, compose_config_from_args, compose_config_from_argv
-from weave.api import ConfigArgsCompositionResult, ConfigArgsInspectionResult, inspect_config_args
+from weave.api import (
+    ConfigArgsCompositionResult,
+    ConfigArgsInspectionResult,
+    ConfigBaseRequest,
+    ConfigBaseResolution,
+    inspect_config_args,
+)
 from weave.errors import ConfigLoadError, ConfigMergeError, ConfigValidationError
 from weave.plain import PlainData
 
@@ -85,6 +91,52 @@ def test_config_entrypoint_uses_explicit_config_args(tmp_path: Path) -> None:
 
     assert result.base_config_path == str(base)
     assert result.composed_config.resolved["data"] == {"value": "from-entrypoint"}
+
+
+def test_config_entrypoint_fixed_base_serializes_empty_base_details(tmp_path: Path) -> None:
+    base = _write(tmp_path / "configs" / "base.yaml", "data:\n  value: base\n")
+
+    result = ConfigEntrypoint(base_config_path=base).compose_args()
+
+    assert result.base_details == ()
+    payload = result.to_dict()
+    assert payload["base_details"] == []
+    assert "base_context" not in json.dumps(payload, sort_keys=True)
+
+
+def test_config_entrypoint_base_resolver_selects_base_and_serializes_explicit_details(tmp_path: Path) -> None:
+    _write(tmp_path / "configs" / "default.yaml", "data:\n  value: default\n")
+    selected_base = _write(tmp_path / "configs" / "profiles" / "dev.yaml", "data:\n  value: selected\n")
+    context = {"profile": "dev", "opaque_token": "do-not-serialize"}
+    requests: list[ConfigBaseRequest] = []
+
+    def resolver(request: ConfigBaseRequest) -> ConfigBaseResolution:
+        requests.append(request)
+        return ConfigBaseResolution(
+            base_config_path=selected_base,
+            details={"strategy": "profile", "profile": "dev"},
+        )
+
+    entrypoint = ConfigEntrypoint(base_resolver=resolver, base_context=context)
+
+    result = entrypoint.compose_args(["data.value=from-resolver"])
+
+    assert requests[0].base_context is context
+    assert result.base_config_path == str(selected_base)
+    assert result.base_details == ({"strategy": "profile", "profile": "dev"},)
+    assert result.composed_config.resolved["data"] == {"value": "from-resolver"}
+    payload = result.to_dict()
+    assert payload["base_details"] == [{"strategy": "profile", "profile": "dev"}]
+    payload_text = json.dumps(payload, sort_keys=True)
+    assert "base_context" not in payload_text
+    assert "opaque_token" not in payload_text
+
+    inspection = entrypoint.inspect_args(["data.value=from-inspect"])
+
+    assert requests[1].base_context is context
+    assert inspection.base_details == ({"strategy": "profile", "profile": "dev"},)
+    assert inspection.inspection.resolved["data"] == {"value": "from-inspect"}
+    assert inspection.to_dict()["base_details"] == [{"strategy": "profile", "profile": "dev"}]
 
 
 def test_compose_config_from_argv_routes_base_first_commandless_shape(tmp_path: Path) -> None:

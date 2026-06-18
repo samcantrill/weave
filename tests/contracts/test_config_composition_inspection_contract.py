@@ -1,5 +1,6 @@
 """Contract tests for public composition inspection output."""
 
+import json
 from pathlib import Path
 from typing import cast
 
@@ -9,8 +10,9 @@ pytest.importorskip("pydantic")
 pytest.importorskip("omegaconf")
 pytest.importorskip("yaml")
 
-from weave import RecipeCatalog, compose_config_from_args, inspect_config_composition
+from weave import ConfigEntrypoint, RecipeCatalog, compose_config_from_args, inspect_config_composition
 from weave._argv import parse_config_argv
+from weave.api import ConfigBaseRequest, ConfigBaseResolution
 from weave.compose import _inspect_config_composition_with_argv_scoped_overlays
 from weave.fingerprints import ARTIFACT_SAFE_FINGERPRINT_LABEL
 
@@ -146,3 +148,38 @@ def test_commandless_config_args_result_shape_omits_command_and_objects(tmp_path
     assert "command" not in parsed_payload
     assert "value_overrides" in parsed_payload
     assert cast(dict[str, object], payload["composed_config"])["resolved"] == {"name": "next"}
+
+
+def test_base_resolution_details_are_result_metadata_not_artifacts(tmp_path: Path) -> None:
+    path = tmp_path / "base.yaml"
+    path.write_text("name: base\n", encoding="utf-8")
+    context = {"opaque_token": "not-serialized"}
+
+    def resolver(request: ConfigBaseRequest) -> ConfigBaseResolution:
+        assert request.base_context is context
+        return ConfigBaseResolution(
+            base_config_path=path,
+            details={"strategy": "profile", "profile": "dev"},
+        )
+
+    result = ConfigEntrypoint(base_resolver=resolver, base_context=context).compose_args(["name=next"])
+
+    payload = result.to_dict()
+    assert payload["base_details"] == [{"strategy": "profile", "profile": "dev"}]
+    payload_text = json.dumps(payload, sort_keys=True)
+    assert "base_context" not in payload_text
+    assert "opaque_token" not in payload_text
+    assert "not-serialized" not in payload_text
+
+    artifact_payload = json.dumps(
+        {
+            "manifest": result.composed_config.manifest.to_dict(),
+            "provenance": result.composed_config.provenance.to_dict(),
+            "source_artifacts": [record.to_dict() for record in result.composed_config.source_artifacts],
+            "fingerprint_records": [record.to_dict() for record in result.composed_config.fingerprint_records],
+            "raw_source_snapshots": result.composed_config.raw_source_snapshots.to_dict(),
+        },
+        sort_keys=True,
+    )
+    assert "base_details" not in artifact_payload
+    assert "profile" not in artifact_payload

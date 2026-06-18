@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
@@ -19,7 +19,7 @@ from ._argv import (
 )
 from .digests import Fingerprint
 from .plain import PlainData, ensure_plain_data, to_plain_data
-from .errors import ConfigError, ConfigErrorContext, ConfigValidationError
+from .errors import ConfigError, ConfigErrorContext, ConfigValidationError, PlainDataError
 
 from .artifacts import (
     SCHEMA_VERSION as ARTIFACT_SCHEMA_VERSION,
@@ -315,6 +315,45 @@ class ConfigArgvInspectionResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ConfigBaseRequest:
+    base_context: object | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigBaseResolution:
+    base_config_path: str | Path
+    details: Mapping[str, PlainData] | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.base_config_path, (str, Path)):
+            raise ConfigValidationError("ConfigBaseResolution.base_config_path must be a path string or Path")
+        base_config_path = str(self.base_config_path)
+        if base_config_path == "":
+            raise ConfigValidationError("ConfigBaseResolution.base_config_path must be non-empty")
+
+        details: dict[str, PlainData] | None
+        if self.details is None:
+            details = None
+        else:
+            try:
+                plain_details = ensure_plain_data(self.details, path="ConfigBaseResolution.details")
+            except PlainDataError as exc:
+                raise ConfigValidationError("ConfigBaseResolution.details must be plain data") from exc
+            if not isinstance(plain_details, dict):
+                raise ConfigValidationError("ConfigBaseResolution.details must be a mapping")
+            details = cast(dict[str, PlainData], plain_details)
+
+        object.__setattr__(self, "base_config_path", base_config_path)
+        object.__setattr__(self, "details", details)
+
+    def to_dict(self) -> dict[str, PlainData]:
+        payload: dict[str, PlainData] = {"base_config_path": str(self.base_config_path)}
+        if self.details is not None:
+            payload["details"] = cast(dict[str, PlainData], self.details)
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
 class ConfigArgsCompositionResult:
     base_config_path: str
     parsed_args: ParsedConfigArgs
@@ -323,6 +362,7 @@ class ConfigArgsCompositionResult:
     unparsed_args: tuple[ArgvUnparsedArg, ...]
     warnings: tuple[ConfigArgvWarning, ...]
     composed_config: ComposedConfig
+    base_details: tuple[dict[str, PlainData], ...] = ()
 
     def __post_init__(self) -> None:
         _validate_config_args_result_common(
@@ -339,6 +379,7 @@ class ConfigArgsCompositionResult:
         object.__setattr__(self, "scoped_overlays", tuple(self.scoped_overlays))
         object.__setattr__(self, "unparsed_args", tuple(self.unparsed_args))
         object.__setattr__(self, "warnings", tuple(self.warnings))
+        object.__setattr__(self, "base_details", _normalize_base_details(self.base_details))
 
     def to_dict(self) -> dict[str, PlainData]:
         return {
@@ -349,6 +390,7 @@ class ConfigArgsCompositionResult:
                 scoped_overlays=self.scoped_overlays,
                 unparsed_args=self.unparsed_args,
                 warnings=self.warnings,
+                base_details=self.base_details,
             ),
             "composed_config": _composed_config_to_dict(self.composed_config),
         }
@@ -363,6 +405,7 @@ class ConfigArgsInspectionResult:
     unparsed_args: tuple[ArgvUnparsedArg, ...]
     warnings: tuple[ConfigArgvWarning, ...]
     inspection: ConfigCompositionInspection
+    base_details: tuple[dict[str, PlainData], ...] = ()
 
     def __post_init__(self) -> None:
         _validate_config_args_result_common(
@@ -379,6 +422,7 @@ class ConfigArgsInspectionResult:
         object.__setattr__(self, "scoped_overlays", tuple(self.scoped_overlays))
         object.__setattr__(self, "unparsed_args", tuple(self.unparsed_args))
         object.__setattr__(self, "warnings", tuple(self.warnings))
+        object.__setattr__(self, "base_details", _normalize_base_details(self.base_details))
 
     def to_composed_config(self) -> ComposedConfig:
         return self.inspection.to_composed_config()
@@ -392,6 +436,7 @@ class ConfigArgsInspectionResult:
                 scoped_overlays=self.scoped_overlays,
                 unparsed_args=self.unparsed_args,
                 warnings=self.warnings,
+                base_details=self.base_details,
             ),
             "inspection": _inspection_to_dict(self.inspection),
         }
@@ -400,7 +445,9 @@ class ConfigArgsInspectionResult:
 
 @dataclass(frozen=True, slots=True)
 class ConfigEntrypoint:
-    base_config_path: str | Path
+    base_config_path: str | Path | None = None
+    base_resolver: Callable[[ConfigBaseRequest], ConfigBaseResolution] | None = None
+    base_context: object | None = None
     recipe_catalog: RecipeCatalog | None = None
     allow_unparsed: bool = False
     include_raw_source_snapshots: bool = False
@@ -408,33 +455,89 @@ class ConfigEntrypoint:
     def __post_init__(self) -> None:
         if self.recipe_catalog is not None and not isinstance(self.recipe_catalog, RecipeCatalog):
             raise ConfigValidationError("recipe_catalog must be a RecipeCatalog")
+        if not isinstance(self.allow_unparsed, bool):
+            raise ConfigValidationError("allow_unparsed must be a bool")
         if not isinstance(self.include_raw_source_snapshots, bool):
             raise ConfigValidationError("include_raw_source_snapshots must be a bool")
 
-        parsed = _parse_config_args(
-            (),
-            base_config_path=self.base_config_path,
-            allow_unparsed=self.allow_unparsed,
-        )
-        object.__setattr__(self, "base_config_path", parsed.base_config_path)
+        base_config_path = self.base_config_path
+        has_fixed_base = base_config_path is not None
+        has_resolver = self.base_resolver is not None
+        if has_fixed_base == has_resolver:
+            code = "conflicting_base_strategies" if has_fixed_base else "missing_base_strategy"
+            raise _base_resolution_error(
+                "ConfigEntrypoint requires exactly one base strategy",
+                code=code,
+                details={
+                    "has_base_config_path": has_fixed_base,
+                    "has_base_resolver": has_resolver,
+                },
+            )
+
+        if base_config_path is not None:
+            parsed = _parse_config_args(
+                (),
+                base_config_path=base_config_path,
+                allow_unparsed=self.allow_unparsed,
+            )
+            object.__setattr__(self, "base_config_path", parsed.base_config_path)
+            return
+
+        if not callable(self.base_resolver):
+            raise _base_resolution_error(
+                "base_resolver must be callable",
+                code="invalid_base_resolver",
+                details={"actual_type": type(self.base_resolver).__name__},
+            )
 
     def compose_args(self, config_args: Sequence[str] = ()) -> ConfigArgsCompositionResult:
-        return compose_config_from_args(
-            self.base_config_path,
-            config_args=config_args,
-            allow_unparsed=self.allow_unparsed,
-            recipe_catalog=self.recipe_catalog,
-            include_raw_source_snapshots=self.include_raw_source_snapshots,
+        inspection_result = self.inspect_args(config_args)
+        return ConfigArgsCompositionResult(
+            base_config_path=inspection_result.base_config_path,
+            parsed_args=inspection_result.parsed_args,
+            value_overrides=inspection_result.value_overrides,
+            scoped_overlays=inspection_result.scoped_overlays,
+            unparsed_args=inspection_result.unparsed_args,
+            warnings=inspection_result.warnings,
+            composed_config=inspection_result.inspection.to_composed_config(),
+            base_details=inspection_result.base_details,
         )
 
     def inspect_args(self, config_args: Sequence[str] = ()) -> ConfigArgsInspectionResult:
-        return inspect_config_args(
-            self.base_config_path,
+        base_config_path, base_details = self._resolve_base()
+        result = inspect_config_args(
+            base_config_path,
             config_args=config_args,
             allow_unparsed=self.allow_unparsed,
             recipe_catalog=self.recipe_catalog,
             include_raw_source_snapshots=self.include_raw_source_snapshots,
         )
+        return ConfigArgsInspectionResult(
+            base_config_path=result.base_config_path,
+            parsed_args=result.parsed_args,
+            value_overrides=result.value_overrides,
+            scoped_overlays=result.scoped_overlays,
+            unparsed_args=result.unparsed_args,
+            warnings=result.warnings,
+            inspection=result.inspection,
+            base_details=base_details,
+        )
+
+    def _resolve_base(self) -> tuple[str, tuple[dict[str, PlainData], ...]]:
+        if self.base_resolver is None:
+            if self.base_config_path is None:
+                raise _base_resolution_error("Missing base strategy", code="missing_base_strategy")
+            return str(self.base_config_path), ()
+
+        resolved = self.base_resolver(ConfigBaseRequest(base_context=self.base_context))
+        if not isinstance(resolved, ConfigBaseResolution):
+            raise _base_resolution_error(
+                "base_resolver must return ConfigBaseResolution",
+                code="invalid_base_resolution",
+                details={"actual_type": type(resolved).__name__},
+            )
+        base_details = (cast(dict[str, PlainData], resolved.details),) if resolved.details is not None else ()
+        return str(resolved.base_config_path), base_details
 
 
 def compose_config_from_args(
@@ -460,6 +563,7 @@ def compose_config_from_args(
         unparsed_args=inspection_result.unparsed_args,
         warnings=inspection_result.warnings,
         composed_config=inspection_result.inspection.to_composed_config(),
+        base_details=inspection_result.base_details,
     )
 
 
@@ -526,6 +630,7 @@ def compose_config_from_argv(
         unparsed_args=inspection_result.unparsed_args,
         warnings=inspection_result.warnings,
         composed_config=inspection_result.inspection.to_composed_config(),
+        base_details=inspection_result.base_details,
     )
 
 
@@ -699,6 +804,38 @@ def _argv_helper_remediation(code: str) -> str | None:
     return None
 
 
+def _base_resolution_error(
+    message: str,
+    *,
+    code: str,
+    details: dict[str, PlainData] | None = None,
+) -> ConfigValidationError:
+    return ConfigValidationError(
+        message,
+        context=ConfigErrorContext(
+            code=code,
+            source_kind="config_entrypoint",
+            source_order=-1,
+            source_path="<config-entrypoint>",
+            directive="base_resolution",
+            remediation=_base_resolution_remediation(code),
+            details=details,
+        ),
+    )
+
+
+def _base_resolution_remediation(code: str) -> str | None:
+    if code == "missing_base_strategy":
+        return "Pass either base_config_path or base_resolver to ConfigEntrypoint."
+    if code == "conflicting_base_strategies":
+        return "Pass exactly one base strategy: base_config_path or base_resolver."
+    if code == "invalid_base_resolver":
+        return "Pass a callable base_resolver or use base_config_path for fixed-base composition."
+    if code == "invalid_base_resolution":
+        return "Return ConfigBaseResolution(base_config_path=..., details=...) from base_resolver."
+    return None
+
+
 def _argv_warnings(*, parsed: ParsedConfigArgv | ParsedConfigArgs, recipe_catalog: RecipeCatalog) -> tuple[ConfigArgvWarning, ...]:
     candidates_by_override = {
         override: _warning_candidates(parsed.base_config_path, override)
@@ -833,6 +970,7 @@ def _config_args_result_metadata_to_dict(
     scoped_overlays: tuple[ArgvScopedOverlay, ...],
     unparsed_args: tuple[ArgvUnparsedArg, ...],
     warnings: tuple[ConfigArgvWarning, ...],
+    base_details: tuple[dict[str, PlainData], ...] = (),
 ) -> dict[str, PlainData]:
     return {
         "base_config_path": base_config_path,
@@ -841,7 +979,18 @@ def _config_args_result_metadata_to_dict(
         "scoped_overlays": [overlay.to_dict() for overlay in scoped_overlays],
         "unparsed_args": [arg.to_dict() for arg in unparsed_args],
         "warnings": [warning.to_dict() for warning in warnings],
+        "base_details": list(_normalize_base_details(base_details)),
     }
+
+
+def _normalize_base_details(base_details: tuple[dict[str, PlainData], ...]) -> tuple[dict[str, PlainData], ...]:
+    normalized: list[dict[str, PlainData]] = []
+    for index, item in enumerate(tuple(base_details)):
+        plain_item = ensure_plain_data(item, path=f"base_details[{index}]")
+        if not isinstance(plain_item, dict):
+            raise ConfigValidationError(f"base_details[{index}] must be a mapping")
+        normalized.append(cast(dict[str, PlainData], plain_item))
+    return tuple(normalized)
 
 
 def _validate_argv_result_common(
@@ -1036,6 +1185,8 @@ __all__ = [
     "ComposedConfig",
     "ConfigArgsCompositionResult",
     "ConfigArgsInspectionResult",
+    "ConfigBaseRequest",
+    "ConfigBaseResolution",
     "ConfigEntrypoint",
     "ConfigArgvCompositionResult",
     "ConfigArgvInspectionResult",

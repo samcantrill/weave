@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: refined phase execution plan
+- Status: implementation complete; PR pending
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 2: Base resolution and metadata boundaries`
 - Branch: `codex/stage-1-base-resolution`
@@ -13,7 +13,7 @@
 - Stack predecessor: Phase 1 merged to `develop`
 - Base branch: `develop`
 - Target branch: `develop`
-- Merge eligibility: eligible after focused Phase 2 validation, `make validate-pr`, `make test-summary`, PR CI, and workflow metadata updates
+- Merge eligibility: eligible after PR CI passes and workflow metadata updates are refreshed with PR details
 - Workflow path: expanded path
 - Successor dependency notes: Phase 3 depends on commandless result models and may combine selected instantiation with resolver metadata in tests.
 - Plan quality gate: passed in the full implementation plan
@@ -196,10 +196,10 @@ make test-summary
 
 - Draft plan: completed in `docs/roadmap/stage-1/phases/stage-1-base-resolution.md`
 - Final phase execution plan: completed in this artifact
-- Implementation summary: pending
-- Implementation validation: pending
-- Refinement summary: pending
-- Blocker-resolution summary: pending
-- PR preparation: pending
-- Stack maintenance: pending
+- Implementation summary: completed resolver request/resolution records, exact-one base strategy validation, resolver invocation for `ConfigEntrypoint.compose_args(...)` and `inspect_args(...)`, plain-data `base_details` on commandless result records, structured base-resolution diagnostics, and detailed `weave.api` exports without widening top-level `weave`.
+- Implementation validation: focused Phase 2 tests passed; `make validate-pr` passed; `make test-summary` completed with package 28, unit 285, contract 32, integration 93, and examples 9 passing.
+- Refinement summary: narrowed `base_details` to commandless result records only and fixed pyright narrowing for resolver paths/details.
+- Blocker-resolution summary: 0/3 used; no blockers.
+- PR preparation: PR body drafted in `docs/roadmap/stage-1/phases/stage-1-base-resolution-pr-body.md`; PR pending.
+- Stack maintenance: branch is based on `develop`; no successor branches exist yet.
 - Remaining blockers: none
