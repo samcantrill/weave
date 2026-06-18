@@ -1,11 +1,11 @@
-"""Compose config from a project CLI argv vector."""
+"""Compose config from project-owned commandless config args."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from pprint import pprint
 
-from weave import compose_config_from_argv
+from weave import compose_config_from_args
 
 
 HERE = Path(__file__).resolve().parent
@@ -13,24 +13,20 @@ BASE_CONFIG = HERE / "configs" / "experiment.yaml"
 
 
 def main() -> None:
-    result = compose_config_from_argv(
+    result = compose_config_from_args(
+        BASE_CONFIG,
         [
-            "run",
-            str(BASE_CONFIG),
             "data/=data_A",
             "model/=model_B",
             "+runtime/=local",
             "trainer.epochs=5",
             "--dry-run",
         ],
-        command_choices={"inspect", "run"},
         allow_unparsed=True,
     )
 
-    print("command:")
-    print(result.command)
-    print("unparsed command args:")
-    pprint(result.parsed_argv.unparsed_arg_strings)
+    print("unparsed config args:")
+    pprint(result.parsed_args.unparsed_arg_strings)
     print("scoped overlays:")
     pprint(
         [
@@ -47,13 +43,11 @@ def main() -> None:
     print("resolved config:")
     pprint(result.composed_config.resolved, sort_dicts=True)
 
-    warning_result = compose_config_from_argv(
+    warning_result = compose_config_from_args(
+        BASE_CONFIG,
         [
-            "run",
-            str(BASE_CONFIG),
             "model=model_B",
         ],
-        command_choices={"inspect", "run"},
     )
 
     print("helper-local warnings:")

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         ARTIFACT_SAFE_FINGERPRINT_POLICY,
         ARTIFACT_SAFE_RUNTIME_REPLAY,
         ComposedConfig,
+        ConfigEntrypoint,
         ConfigCompositionInspection,
         ConfigCompositionStageRecord,
         ConfigFingerprintComparison,
@@ -23,8 +24,10 @@ if TYPE_CHECKING:
         RawSourceSnapshotReference,
         compare_config_artifact_fingerprints,
         compose_config,
+        compose_config_from_args,
         compose_config_from_argv,
         compose_config_with_catalog,
+        inspect_config_args,
         inspect_config_composition,
         instantiate,
         register_recipe,
@@ -40,10 +43,13 @@ _RESOLVED_SYMBOLS: dict[str, object] = {
 _OPTIONAL_SYMBOLS: Final = frozenset(
     {
         "ComposedConfig",
+        "ConfigEntrypoint",
         "ConfigCompositionInspection",
         "ConfigCompositionStageRecord",
+        "inspect_config_args",
         "inspect_config_composition",
         "compose_config",
+        "compose_config_from_args",
         "compose_config_from_argv",
         "compose_config_with_catalog",
         "compare_config_artifact_fingerprints",
@@ -76,11 +82,14 @@ def _resolve_optional_symbol(name: str) -> object:
             return getattr(target_checks, name)
         case (
             "ComposedConfig"
+            | "ConfigEntrypoint"
             | "ConfigCompositionInspection"
             | "ConfigCompositionStageRecord"
             | "compose_config"
+            | "compose_config_from_args"
             | "compose_config_from_argv"
             | "compose_config_with_catalog"
+            | "inspect_config_args"
             | "inspect_config_composition"
             | "register_recipe"
         ):
@@ -136,8 +145,10 @@ __all__ = [
     "__version__",
     "ConfigError",
     "ComposedConfig",
+    "ConfigEntrypoint",
     "ConfigCompositionInspection",
     "ConfigCompositionStageRecord",
+    "inspect_config_args",
     "inspect_config_composition",
     "compose_config_with_catalog",
     "compare_config_artifact_fingerprints",
@@ -151,6 +162,7 @@ __all__ = [
     "Recipe",
     "RecipeCatalog",
     "compose_config",
+    "compose_config_from_args",
     "compose_config_from_argv",
     "instantiate",
     "check_config_targets",

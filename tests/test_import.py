@@ -33,16 +33,23 @@ def test_package_metadata_declares_config_runtime_dependencies() -> None:
 
 
 
-def test_public_argv_import_surface_is_narrow() -> None:
+def test_public_config_args_import_surface_is_narrow() -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
     import weave
     import weave.api as api
 
+    assert weave.ConfigEntrypoint is api.ConfigEntrypoint
+    assert weave.compose_config_from_args is api.compose_config_from_args
+    assert weave.inspect_config_args is api.inspect_config_args
     assert weave.compose_config_from_argv is api.compose_config_from_argv
-    assert "compose_config_from_argv" in dir(weave)
+    assert "ConfigEntrypoint" in dir(weave)
+    assert "compose_config_from_args" in dir(weave)
+    assert "inspect_config_args" in dir(weave)
 
     detailed_names = {
         "inspect_config_from_argv",
+        "ConfigArgsCompositionResult",
+        "ConfigArgsInspectionResult",
         "ConfigArgvCompositionResult",
         "ConfigArgvInspectionResult",
         "ConfigArgvWarning",
@@ -50,12 +57,15 @@ def test_public_argv_import_surface_is_narrow() -> None:
         "ArgvValueOverride",
         "ScopedOverlayCandidate",
         "ArgvUnparsedArg",
+        "ParsedConfigArgs",
         "ParsedConfigArgv",
+        "parse_config_args",
         "parse_config_argv",
     }
     for name in detailed_names:
         assert not hasattr(weave, name)
 
-    for name in detailed_names - {"parse_config_argv"}:
+    for name in detailed_names - {"parse_config_args", "parse_config_argv"}:
         assert hasattr(api, name)
+    assert not hasattr(api, "parse_config_args")
     assert not hasattr(api, "parse_config_argv")

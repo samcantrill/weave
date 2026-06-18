@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from weave._argv import parse_config_argv
+from weave._argv import parse_config_args, parse_config_argv
 from weave.api import ConfigArgvWarning
 from weave.errors import ConfigValidationError
 
@@ -23,6 +23,136 @@ def assert_error_code(exc: pytest.ExceptionInfo[ConfigValidationError], code: st
     assert context.code == code
     assert context.source_kind == "argv"
     assert context.source_path == "<argv>"
+
+
+
+def assert_config_args_error_code(exc: pytest.ExceptionInfo[ConfigValidationError], code: str) -> None:
+    context = exc.value.context
+    assert context is not None
+    assert context.code == code
+    assert context.source_kind == "config_args"
+    assert context.source_path == "<config-args>"
+    assert context.details is None or "command" not in context.details
+
+
+def test_parse_config_args_classifies_commandless_value_overrides(tmp_path: Path) -> None:
+    base = tmp_path / "configs" / "base.yaml"
+
+    result = parse_config_args(
+        [
+            "data.keyC=newValueC",
+            "keyD=newValueD",
+            "+runtime.enabled=true",
+            "count=3",
+            'payload={"items":[1,2]}',
+        ],
+        base_config_path=base,
+    )
+
+    assert result.base_config_path == str(base)
+    assert result.scoped_overlays == ()
+    assert result.unparsed_args == ()
+    assert result.override_strings == (
+        "data.keyC=newValueC",
+        "keyD=newValueD",
+        "+runtime.enabled=true",
+        "count=3",
+        'payload={"items":[1,2]}',
+    )
+    assert [override.path for override in result.value_overrides] == [
+        "data.keyC",
+        "keyD",
+        "runtime.enabled",
+        "count",
+        "payload",
+    ]
+    assert [override.order for override in result.value_overrides] == [0, 1, 2, 3, 4]
+    assert result.value_overrides[2].operation == "add"
+    assert result.value_overrides[2].value is True
+    assert result.value_overrides[3].value == 3
+    assert result.value_overrides[4].value == {"items": [1, 2]}
+    payload = result.to_dict()
+    assert "command" not in payload
+    assert payload["base_config_path"] == str(base)
+
+
+def test_parse_config_args_resolves_scoped_overlay_without_command_context(tmp_path: Path) -> None:
+    base = tmp_path / "configs" / "base.yaml"
+    scope_candidate = touch(tmp_path / "configs" / "data" / "data_A.yaml")
+    base_candidate = touch(tmp_path / "configs" / "data_A.yaml")
+
+    result = parse_config_args(["data/=data_A"], base_config_path=base)
+
+    overlay = result.scoped_overlays[0]
+    assert overlay.raw == "data/=data_A"
+    assert overlay.scope_path == ("data",)
+    assert overlay.operation == "update"
+    assert overlay.resolved_path == str(scope_candidate.resolve())
+    assert [candidate.path for candidate in overlay.candidates] == [
+        str(scope_candidate.resolve()),
+        str((tmp_path / "configs" / "data" / "data_A.yml").resolve()),
+        str(base_candidate.resolve()),
+        str((tmp_path / "configs" / "data_A.yml").resolve()),
+    ]
+    assert overlay.order == 0
+
+
+def test_parse_config_args_records_allowed_unparsed_args(tmp_path: Path) -> None:
+    result = parse_config_args(
+        ["--dry-run", "-v"],
+        base_config_path=tmp_path / "base.yaml",
+        allow_unparsed=True,
+    )
+
+    assert result.unparsed_arg_strings == ("--dry-run", "-v")
+    assert [arg.order for arg in result.unparsed_args] == [0, 1]
+    assert result.value_overrides == ()
+    assert result.scoped_overlays == ()
+
+
+def test_parse_config_args_rejects_disallowed_unparsed_args(tmp_path: Path) -> None:
+    with pytest.raises(ConfigValidationError) as exc:
+        parse_config_args(["--dry-run"], base_config_path=tmp_path / "base.yaml")
+
+    assert_config_args_error_code(exc, "disallowed_unparsed_args")
+    assert exc.value.context is not None
+    assert exc.value.context.details == {
+        "unparsed_args": ["--dry-run"],
+        "unparsed_arg_orders": [0],
+    }
+
+
+@pytest.mark.parametrize(
+    ("config_args", "code"),
+    [
+        (["not-a-shorthand"], "malformed_config_arg"),
+        (["/=root"], "unsupported_root_overlay"),
+        (["+/=root"], "unsupported_root_overlay"),
+        (["model/pipeline=value"], "invalid_scoped_overlay_marker"),
+        (["model//pipeline/=pipeline_A"], "invalid_scoped_overlay_scope"),
+        (["model/="], "missing_scoped_overlay_rhs"),
+    ],
+)
+def test_parse_config_args_structured_parser_errors(config_args: list[str], code: str, tmp_path: Path) -> None:
+    with pytest.raises(ConfigValidationError) as exc:
+        parse_config_args(config_args, base_config_path=tmp_path / "base.yaml")
+
+    assert_config_args_error_code(exc, code)
+
+
+def test_parse_config_args_missing_overlay_reports_candidates_without_command(tmp_path: Path) -> None:
+    base = tmp_path / "configs" / "base.yaml"
+
+    with pytest.raises(ConfigValidationError) as exc:
+        parse_config_args(["model/=model_B"], base_config_path=base)
+
+    assert_config_args_error_code(exc, "missing_scoped_overlay_source")
+    context = exc.value.context
+    assert context is not None
+    assert context.details is not None
+    assert context.details["scope_path"] == ["model"]
+    assert context.details["rhs"] == "model_B"
+    assert "command" not in context.details
 
 
 def test_parse_config_argv_classifies_value_overrides_without_rhs_inference(tmp_path: Path) -> None:
