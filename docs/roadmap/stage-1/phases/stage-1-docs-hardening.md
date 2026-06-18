@@ -2,11 +2,13 @@
 
 ## Metadata
 
-- Status: PR open; CI pending
+- Status: merged
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 4: Docs, examples, and hardening`
 - Branch: `codex/stage-1-docs-hardening`
 - PR: https://github.com/samcantrill/weave/pull/4
+- Merged at: 2026-06-18T07:06:21Z
+- Merge commit: `893eb0615b408112fc594fa6fb20c0761862155f`
 - Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-docs-hardening`
 - Phase execution plan path: `docs/roadmap/stage-1/phases/stage-1-docs-hardening.md`
 - Full plan: `docs/roadmap/stage-1/implementation-plan.md`
@@ -187,7 +189,7 @@ make test-summary
 ## Refinement And Review Budget Status
 
 - Phase implementation refinement: unused
-- PR review: unused
+- PR review: completed; CI passed and PR #4 merged
 - Blocker resolution: 0/3 used
 
 ## Completion Notes
@@ -198,6 +200,7 @@ make test-summary
 - Implementation validation: `make test-examples`, focused docs scans, `make validate-pr`, and `make test-summary` passed.
 - Refinement summary: no additional refinement loop used
 - Blocker-resolution summary: none
-- PR preparation: https://github.com/samcantrill/weave/pull/4; CI pending
+- PR preparation: https://github.com/samcantrill/weave/pull/4; CI passed and merged
 - Stack maintenance: Phase 3 merged before branch creation
 - Remaining blockers: none
+- Merge record: PR #4 merged into `develop`; post-merge metadata recorded here
