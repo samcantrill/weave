@@ -2,11 +2,13 @@
 
 ## Metadata
 
-- Status: PR open; CI pending
+- Status: merged
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 3: Selected instantiation and object separation`
 - Branch: `codex/stage-1-selected-instantiation`
 - PR: https://github.com/samcantrill/weave/pull/3
+- Merged at: 2026-06-18T06:27:09Z
+- Merge commit: `df0e63b16f3c227f20371d4568bb4c3fdfb62bc9`
 - Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-selected-instantiation`
 - Phase execution plan path: `docs/roadmap/stage-1/phases/stage-1-selected-instantiation.md`
 - Full plan: `docs/roadmap/stage-1/implementation-plan.md`
@@ -24,6 +26,7 @@
 - Setup limitations: none; dedicated Phase 3 worktree is clean and based on `develop` after Phase 2 merge metadata.
 - Blockers: none for local Phase 3 implementation
 - Local validation: `make validate-pr` passed; `make test-summary` passed and wrote `build/test-summary.md`
+- GitHub validation: `CI/checks (pull_request)` passed before merge
 
 ## Objective
 
