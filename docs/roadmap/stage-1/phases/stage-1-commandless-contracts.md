@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: implemented; initial validation passed
+- Status: PR open; CI pending
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 1: Commandless public contracts`
 - Branch: `codex/stage-1-commandless-contracts`
@@ -204,6 +204,6 @@ make test-summary
 - Implementation validation: `uv run --group dev python -m pytest tests/unit/config/test_argv.py tests/integration/config/test_compose_argv_from_cli.py tests/test_import.py tests/contracts/test_config_composition_inspection_contract.py tests/contracts/test_config_error_contract.py` passed with 59 tests; `make test-unit` passed with 278 tests; `make test-integration` passed with 91 tests; `make test-package` passed with 28 selected tests; `uv run --group dev python -m pytest tests/contracts` passed with 31 tests; `make validate-pr` passed; `make test-summary` completed.
 - Refinement summary: not run; implementation refinement budget remains unused.
 - Blocker-resolution summary: 0/3 used.
-- PR preparation: not performed in this pass; no PR opened.
-- Stack maintenance: no branch/worktree cleanup performed because the implementation ran in the current checkout due the recorded local setup limitations.
+- PR preparation: PR opened against `develop`: https://github.com/samcantrill/weave/pull/1.
+- Stack maintenance: no branch/worktree cleanup performed yet; merge is pending CI.
 - Remaining blockers: remote target branch mismatch remains unresolved for PR targeting; original checkout still contains unrelated pre-existing roadmap/docs changes.
