@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: refined phase execution plan
+- Status: local implementation and validation complete; PR pending
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 3: Selected instantiation and object separation`
 - Branch: `codex/stage-1-selected-instantiation`
@@ -22,6 +22,7 @@
 - Refine pass: completed in this artifact
 - Setup limitations: none; dedicated Phase 3 worktree is clean and based on `develop` after Phase 2 merge metadata.
 - Blockers: none for local Phase 3 implementation
+- Local validation: `make validate-pr` passed; `make test-summary` passed and wrote `build/test-summary.md`
 
 ## Objective
 

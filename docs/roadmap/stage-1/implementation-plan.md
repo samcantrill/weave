@@ -5,7 +5,7 @@ Roadmap stage: `v1`
 Planning document: `docs/roadmap/stage-1/planning.md`
 Workflow: `.codex/workflows/roadmap-stage-implementation.md`
 Target branch: `develop`
-Current phase: Phase 3 execution planning complete; implementation pending
+Current phase: Phase 3 local implementation and validation complete; PR pending
 Blockers: none
 
 ## Summary
@@ -504,7 +504,8 @@ Workflow path: expanded path
 
 ### Acceptance Evidence
 
-- Behavior evidence: selected values instantiate only when requested.
+- Behavior evidence: selected values instantiate only when requested; default
+  composition and inspection remain inert.
 - Design-decision evidence: no full-config instantiation API is introduced.
 - Future-roadmap compatibility evidence: no executor/store/workflow persistence
   behavior is added.
@@ -512,12 +513,15 @@ Workflow path: expanded path
   name-to-path mappings.
 - Documentation evidence: Phase 4 notes updated for selected-instantiation docs.
 - Domain-neutrality evidence: tests use neutral target fixtures.
+- Local validation evidence: `make validate-pr` passed lint, Pyright, package
+  28, unit 290, contract 33, integration 96, examples 9, and build;
+  `make test-summary` passed and wrote `build/test-summary.md`.
 
 ### Phase Workflow State
 
 - Phase execution plan: completed in `docs/roadmap/stage-1/phases/stage-1-selected-instantiation.md`
 - Planning/refinement budget: completed; no additional planning loop used
-- Implementation/refinement budget: unused
+- Implementation/refinement budget: completed locally; no blocker loop used
 - PR review budget: unused
 - Blocker-resolution budget: 0/3 used
 - Pre-submit blocker gate: Phase 1 and Phase 2 merged

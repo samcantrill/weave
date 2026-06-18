@@ -363,6 +363,8 @@ class ConfigArgsCompositionResult:
     warnings: tuple[ConfigArgvWarning, ...]
     composed_config: ComposedConfig
     base_details: tuple[dict[str, PlainData], ...] = ()
+    objects: Mapping[str, object] = field(default_factory=dict)
+    selected_objects: tuple[dict[str, PlainData], ...] = ()
 
     def __post_init__(self) -> None:
         _validate_config_args_result_common(
@@ -380,6 +382,14 @@ class ConfigArgsCompositionResult:
         object.__setattr__(self, "unparsed_args", tuple(self.unparsed_args))
         object.__setattr__(self, "warnings", tuple(self.warnings))
         object.__setattr__(self, "base_details", _normalize_base_details(self.base_details))
+        if not isinstance(self.objects, Mapping):
+            raise ConfigValidationError("ConfigArgsCompositionResult.objects must be a mapping")
+        objects = dict(self.objects)
+        for key in objects:
+            if not isinstance(key, str) or key == "":
+                raise ConfigValidationError("ConfigArgsCompositionResult.objects keys must be non-empty strings")
+        object.__setattr__(self, "objects", objects)
+        object.__setattr__(self, "selected_objects", _normalize_selected_object_metadata(self.selected_objects))
 
     def to_dict(self) -> dict[str, PlainData]:
         return {
@@ -391,6 +401,7 @@ class ConfigArgsCompositionResult:
                 unparsed_args=self.unparsed_args,
                 warnings=self.warnings,
                 base_details=self.base_details,
+                selected_objects=self.selected_objects,
             ),
             "composed_config": _composed_config_to_dict(self.composed_config),
         }
@@ -451,6 +462,9 @@ class ConfigEntrypoint:
     recipe_catalog: RecipeCatalog | None = None
     allow_unparsed: bool = False
     include_raw_source_snapshots: bool = False
+    selected_objects: Sequence[str] | Mapping[str, str] = ()
+    runtime: Mapping[str, object] | None = None
+    _selected_object_specs: tuple[dict[str, PlainData], ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.recipe_catalog is not None and not isinstance(self.recipe_catalog, RecipeCatalog):
@@ -459,6 +473,16 @@ class ConfigEntrypoint:
             raise ConfigValidationError("allow_unparsed must be a bool")
         if not isinstance(self.include_raw_source_snapshots, bool):
             raise ConfigValidationError("include_raw_source_snapshots must be a bool")
+        selected_object_specs = _normalize_selected_object_specs(self.selected_objects)
+        object.__setattr__(self, "_selected_object_specs", selected_object_specs)
+        if self.runtime is not None and not isinstance(self.runtime, Mapping):
+            raise _selected_instantiation_error(
+                "runtime must be a mapping when provided",
+                code="invalid_selected_runtime",
+                expected="mapping",
+                actual=type(self.runtime).__name__,
+                details={"actual_type": type(self.runtime).__name__},
+            )
 
         base_config_path = self.base_config_path
         has_fixed_base = base_config_path is not None
@@ -492,6 +516,13 @@ class ConfigEntrypoint:
 
     def compose_args(self, config_args: Sequence[str] = ()) -> ConfigArgsCompositionResult:
         inspection_result = self.inspect_args(config_args)
+        composed_config = inspection_result.inspection.to_composed_config()
+        selected_objects = self._selected_object_specs
+        objects = _instantiate_selected_objects(
+            composed_config.resolved,
+            selected_objects=selected_objects,
+            runtime=self.runtime,
+        )
         return ConfigArgsCompositionResult(
             base_config_path=inspection_result.base_config_path,
             parsed_args=inspection_result.parsed_args,
@@ -499,8 +530,10 @@ class ConfigEntrypoint:
             scoped_overlays=inspection_result.scoped_overlays,
             unparsed_args=inspection_result.unparsed_args,
             warnings=inspection_result.warnings,
-            composed_config=inspection_result.inspection.to_composed_config(),
+            composed_config=composed_config,
             base_details=inspection_result.base_details,
+            objects=objects,
+            selected_objects=selected_objects,
         )
 
     def inspect_args(self, config_args: Sequence[str] = ()) -> ConfigArgsInspectionResult:
@@ -971,6 +1004,7 @@ def _config_args_result_metadata_to_dict(
     unparsed_args: tuple[ArgvUnparsedArg, ...],
     warnings: tuple[ConfigArgvWarning, ...],
     base_details: tuple[dict[str, PlainData], ...] = (),
+    selected_objects: tuple[dict[str, PlainData], ...] = (),
 ) -> dict[str, PlainData]:
     return {
         "base_config_path": base_config_path,
@@ -980,6 +1014,7 @@ def _config_args_result_metadata_to_dict(
         "unparsed_args": [arg.to_dict() for arg in unparsed_args],
         "warnings": [warning.to_dict() for warning in warnings],
         "base_details": list(_normalize_base_details(base_details)),
+        "selected_objects": list(_normalize_selected_object_metadata(selected_objects)),
     }
 
 
@@ -991,6 +1026,203 @@ def _normalize_base_details(base_details: tuple[dict[str, PlainData], ...]) -> t
             raise ConfigValidationError(f"base_details[{index}] must be a mapping")
         normalized.append(cast(dict[str, PlainData], plain_item))
     return tuple(normalized)
+
+
+def _normalize_selected_object_specs(
+    selected_objects: Sequence[str] | Mapping[str, str],
+) -> tuple[dict[str, PlainData], ...]:
+    if isinstance(selected_objects, str):
+        raise _selected_instantiation_error(
+            "selected_objects must be a sequence of dot paths or a mapping of object keys to dot paths",
+            code="invalid_selected_objects",
+            expected="sequence or mapping",
+            actual="str",
+            details={"actual_type": "str"},
+        )
+
+    specs: list[dict[str, PlainData]] = []
+    seen_keys: set[str] = set()
+    if isinstance(selected_objects, Mapping):
+        raw_items = tuple(selected_objects.items())
+        for index, (key, dot_path) in enumerate(raw_items):
+            if not isinstance(key, str) or key == "":
+                raise _selected_instantiation_error(
+                    "selected object keys must be non-empty strings",
+                    code="invalid_selected_object_key",
+                    expected="non-empty string",
+                    actual=type(key).__name__ if not isinstance(key, str) else "empty string",
+                    details={"selector_index": index},
+                )
+            if key in seen_keys:
+                raise _selected_instantiation_error(
+                    "selected object keys must be unique",
+                    code="duplicate_selected_object_key",
+                    details={"key": key, "selector_index": index},
+                )
+            seen_keys.add(key)
+            dot_path = _normalize_selected_dot_path(dot_path, key=key, index=index)
+            specs.append({"key": key, "path": dot_path})
+        return tuple(specs)
+
+    if not isinstance(selected_objects, Sequence):
+        raise _selected_instantiation_error(
+            "selected_objects must be a sequence of dot paths or a mapping of object keys to dot paths",
+            code="invalid_selected_objects",
+            expected="sequence or mapping",
+            actual=type(selected_objects).__name__,
+            details={"actual_type": type(selected_objects).__name__},
+        )
+
+    for index, dot_path in enumerate(selected_objects):
+        path = _normalize_selected_dot_path(dot_path, key="", index=index)
+        if path in seen_keys:
+            raise _selected_instantiation_error(
+                "selected object keys must be unique",
+                code="duplicate_selected_object_key",
+                details={"key": path, "selector_index": index},
+            )
+        seen_keys.add(path)
+        specs.append({"key": path, "path": path})
+    return tuple(specs)
+
+
+def _normalize_selected_dot_path(dot_path: object, *, key: str, index: int) -> str:
+    if not isinstance(dot_path, str) or dot_path == "":
+        raise _selected_instantiation_error(
+            "selected object paths must be non-empty dot-path strings",
+            code="invalid_selected_object_path",
+            expected="non-empty dot path",
+            actual=type(dot_path).__name__ if not isinstance(dot_path, str) else "empty string",
+            details={"key": key, "selector_index": index},
+        )
+    segments = dot_path.split(".")
+    if any(segment == "" for segment in segments):
+        raise _selected_instantiation_error(
+            "selected object paths must not contain empty path segments",
+            code="invalid_selected_object_path",
+            expected="dot path without empty segments",
+            actual=dot_path,
+            details={"key": key, "path": dot_path, "selector_index": index},
+        )
+    return dot_path
+
+
+def _normalize_selected_object_metadata(
+    selected_objects: tuple[dict[str, PlainData], ...],
+) -> tuple[dict[str, PlainData], ...]:
+    normalized: list[dict[str, PlainData]] = []
+    seen_keys: set[str] = set()
+    for index, item in enumerate(tuple(selected_objects)):
+        plain_item = ensure_plain_data(item, path=f"selected_objects[{index}]")
+        if not isinstance(plain_item, dict):
+            raise ConfigValidationError(f"selected_objects[{index}] must be a mapping")
+        key = plain_item.get("key")
+        dot_path = plain_item.get("path")
+        if not isinstance(key, str) or key == "":
+            raise ConfigValidationError(f"selected_objects[{index}].key must be a non-empty string")
+        if key in seen_keys:
+            raise ConfigValidationError(f"selected_objects[{index}].key must be unique")
+        seen_keys.add(key)
+        if not isinstance(dot_path, str) or dot_path == "" or any(segment == "" for segment in dot_path.split(".")):
+            raise ConfigValidationError(f"selected_objects[{index}].path must be a non-empty dot path")
+        normalized.append({"key": key, "path": dot_path})
+    return tuple(normalized)
+
+
+def _instantiate_selected_objects(
+    resolved: Mapping[str, PlainData],
+    *,
+    selected_objects: tuple[dict[str, PlainData], ...],
+    runtime: Mapping[str, object] | None,
+) -> dict[str, object]:
+    objects: dict[str, object] = {}
+    for item in selected_objects:
+        key = cast(str, item["key"])
+        dot_path = cast(str, item["path"])
+        value = _lookup_selected_object_value(resolved, key=key, dot_path=dot_path)
+        objects[key] = instantiate(value, runtime=runtime)
+    return objects
+
+
+def _lookup_selected_object_value(mapping: Mapping[str, PlainData], *, key: str, dot_path: str) -> PlainData:
+    current: PlainData = cast(PlainData, mapping)
+    traversed: list[str] = []
+    for segment in dot_path.split("."):
+        if not isinstance(current, Mapping):
+            traversed_path = ".".join(traversed)
+            raise _selected_instantiation_error(
+                "Selected object path traversed a non-mapping value",
+                code="non_mapping_selected_object_parent",
+                config_path=_config_path_for_dot_path(traversed_path),
+                expected="mapping",
+                actual=type(current).__name__,
+                details={
+                    "key": key,
+                    "path": dot_path,
+                    "traversed_path": cast(list[PlainData], list(traversed)),
+                },
+            )
+        if segment not in current:
+            raise _selected_instantiation_error(
+                "Selected object path does not exist",
+                code="missing_selected_object_path",
+                config_path=_config_path_for_dot_path(dot_path),
+                expected="existing dot path",
+                actual="missing",
+                details={
+                    "key": key,
+                    "path": dot_path,
+                    "missing_segment": segment,
+                    "traversed_path": cast(list[PlainData], list(traversed)),
+                },
+            )
+        current = current[segment]
+        traversed.append(segment)
+    return current
+
+
+def _config_path_for_dot_path(dot_path: str) -> str:
+    if dot_path == "":
+        return "$"
+    return f"$.{dot_path}"
+
+
+def _selected_instantiation_error(
+    message: str,
+    *,
+    code: str,
+    config_path: str | None = None,
+    expected: PlainData | None = None,
+    actual: PlainData | None = None,
+    details: dict[str, PlainData] | None = None,
+) -> ConfigValidationError:
+    return ConfigValidationError(
+        message,
+        context=ConfigErrorContext(
+            code=code,
+            source_kind="config_entrypoint",
+            source_order=-1,
+            source_path="<config-entrypoint>",
+            config_path=config_path,
+            expected=expected,
+            actual=actual,
+            directive="selected_instantiation",
+            remediation=_selected_instantiation_remediation(code),
+            details=details,
+        ),
+    )
+
+
+def _selected_instantiation_remediation(code: str) -> str | None:
+    if code in {"invalid_selected_objects", "invalid_selected_object_key", "invalid_selected_object_path"}:
+        return "Pass selected_objects as dot-path strings or a mapping of object keys to dot paths."
+    if code == "duplicate_selected_object_key":
+        return "Choose unique selected object keys."
+    if code in {"missing_selected_object_path", "non_mapping_selected_object_parent"}:
+        return "Select an existing path in the resolved config."
+    if code == "invalid_selected_runtime":
+        return "Pass runtime as a mapping when selected objects use runtime injection."
+    return None
 
 
 def _validate_argv_result_common(
