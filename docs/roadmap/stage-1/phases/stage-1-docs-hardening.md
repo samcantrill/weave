@@ -2,10 +2,11 @@
 
 ## Metadata
 
-- Status: local implementation and validation complete; PR pending
+- Status: PR open; CI pending
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 4: Docs, examples, and hardening`
 - Branch: `codex/stage-1-docs-hardening`
+- PR: https://github.com/samcantrill/weave/pull/4
 - Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-docs-hardening`
 - Phase execution plan path: `docs/roadmap/stage-1/phases/stage-1-docs-hardening.md`
 - Full plan: `docs/roadmap/stage-1/implementation-plan.md`
@@ -197,6 +198,6 @@ make test-summary
 - Implementation validation: `make test-examples`, focused docs scans, `make validate-pr`, and `make test-summary` passed.
 - Refinement summary: no additional refinement loop used
 - Blocker-resolution summary: none
-- PR preparation: pending; local validation complete
+- PR preparation: https://github.com/samcantrill/weave/pull/4; CI pending
 - Stack maintenance: Phase 3 merged before branch creation
 - Remaining blockers: none
