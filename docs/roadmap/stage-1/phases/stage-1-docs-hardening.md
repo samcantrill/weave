@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: refined phase execution plan
+- Status: local implementation and validation complete; PR pending
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 4: Docs, examples, and hardening`
 - Branch: `codex/stage-1-docs-hardening`
@@ -193,10 +193,10 @@ make test-summary
 
 - Draft plan: completed in this artifact
 - Final phase execution plan: completed in this artifact
-- Implementation summary: pending
-- Implementation validation: pending
-- Refinement summary: pending
+- Implementation summary: aligned README, feature docs, glossary, roadmap, behavior matrix, example coverage, and the project-owned adapter example with Stage 1 behavior.
+- Implementation validation: `make test-examples`, focused docs scans, `make validate-pr`, and `make test-summary` passed.
+- Refinement summary: no additional refinement loop used
 - Blocker-resolution summary: none
-- PR preparation: pending
+- PR preparation: pending; local validation complete
 - Stack maintenance: Phase 3 merged before branch creation
 - Remaining blockers: none

@@ -5,7 +5,7 @@ Roadmap stage: `v1`
 Planning document: `docs/roadmap/stage-1/planning.md`
 Workflow: `.codex/workflows/roadmap-stage-implementation.md`
 Target branch: `develop`
-Current phase: Phase 4 execution planning complete; implementation pending
+Current phase: Phase 4 local implementation and validation complete; PR pending
 Blockers: none
 
 ## Summary
@@ -614,12 +614,15 @@ Workflow path: expanded path
   README snippets are aligned.
 - Domain-neutrality evidence: examples avoid project-specific schemas, stages,
   datasets, metrics, reports, schedulers, and stores.
+- Local validation evidence: `make test-examples`, focused docs scans,
+  `make validate-pr`, and `make test-summary` passed; summary recorded
+  package 28, unit 290, contract 33, integration 96, and examples 9.
 
 ### Phase Workflow State
 
 - Phase execution plan: completed in `docs/roadmap/stage-1/phases/stage-1-docs-hardening.md`
 - Planning/refinement budget: completed; no additional planning loop used
-- Implementation/refinement budget: pending
+- Implementation/refinement budget: completed locally; no blocker loop used
 - PR review budget: pending
 - Blocker-resolution budget: 0/3 used
 - Pre-submit blocker gate: Phases 1 through 3 merged
@@ -636,11 +639,11 @@ Workflow path: expanded path
 
 ### Completion Summary
 
-- Implementation: pending
-- Validation: pending
+- Implementation: completed locally for public docs, runnable adapter example, behavior matrix, and example coverage docs.
+- Validation: `make test-examples`, focused docs scans, `make validate-pr`, and `make test-summary` passed.
 - PR: pending
 - Merge: pending
-- Follow-up: pending
+- Follow-up: pending PR CI and merge.
 
 ## Cross-Phase Validation
 
