@@ -5,7 +5,7 @@ Roadmap stage: `v1`
 Planning document: `docs/roadmap/stage-1/planning.md`
 Workflow: `.codex/workflows/roadmap-stage-implementation.md`
 Target branch: `develop`
-Current phase: Phase 2 merged; Phase 3 pending
+Current phase: Phase 3 PR open; CI pending
 Blockers: none
 
 ## Summary
@@ -230,7 +230,7 @@ The interfaces are intentionally generic:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `stage-1-commandless-contracts` | merged | `codex/stage-1-commandless-contracts` | https://github.com/samcantrill/weave/pull/1 | `src/weave/api.py`, `src/weave/_argv.py`, `src/weave/__init__.py`, `tests/unit/config/`, `tests/integration/config/`, import tests | Add commandless parser, `ConfigEntrypoint`, preferred commandless helpers, fixed-base compose/inspect, result records, export policy, and migration diagnostics. | `make test-unit`, `make test-integration`, package import tests, commandless result-shape tests. | None yet; docs/examples in Phase 4. |
 | 2 | `stage-1-base-resolution` | merged | `codex/stage-1-base-resolution` | https://github.com/samcantrill/weave/pull/2 | `src/weave/api.py`, resolver tests | Add generic base resolver request/resolution and metadata boundaries. | Unit/integration tests for resolver success/failure and serialization boundaries. | Resolver example draft only if useful; final docs in Phase 4. |
-| 3 | `stage-1-selected-instantiation` | pending | `codex/stage-1-selected-instantiation` | pending | `src/weave/api.py`, instantiation integration tests | Add selected dot-path instantiation and object/result separation. | Unit/integration tests for selectors, runtime injection, non-target values, and no-import default. | Example draft only if useful; final docs in Phase 4. |
+| 3 | `stage-1-selected-instantiation` | pr_open | `codex/stage-1-selected-instantiation` | https://github.com/samcantrill/weave/pull/3 | `src/weave/api.py`, instantiation integration tests | Add selected dot-path instantiation and object/result separation. | Unit/integration tests for selectors, runtime injection, non-target values, and no-import default. | Example draft only if useful; final docs in Phase 4. |
 | 4 | `stage-1-docs-hardening` | pending | `codex/stage-1-docs-hardening` | pending | `docs/`, `examples/`, example tests, migrated argv docs/tests | Align docs, examples, behavior matrix, README snippets, and migration notes. | Example harness, docs review, focused tests, and `make validate-pr` if available. | Project-owned adapter, resolver, selected instantiation, migration diagnostics. |
 
 ## Implementation Readiness Blockers
@@ -452,11 +452,11 @@ Workflow path: expanded path
 
 ## Phase 3: Optional Selected Instantiation
 
-Status: pending
+Status: pr_open
 Slug: `stage-1-selected-instantiation`
 Branch: `codex/stage-1-selected-instantiation`
 Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-selected-instantiation`
-PR: https://github.com/samcantrill/weave/pull/1
+PR: https://github.com/samcantrill/weave/pull/3
 Base branch: `develop`
 Target branch: `develop`
 Workflow path: expanded path
@@ -504,7 +504,8 @@ Workflow path: expanded path
 
 ### Acceptance Evidence
 
-- Behavior evidence: selected values instantiate only when requested.
+- Behavior evidence: selected values instantiate only when requested; default
+  composition and inspection remain inert.
 - Design-decision evidence: no full-config instantiation API is introduced.
 - Future-roadmap compatibility evidence: no executor/store/workflow persistence
   behavior is added.
@@ -512,15 +513,18 @@ Workflow path: expanded path
   name-to-path mappings.
 - Documentation evidence: Phase 4 notes updated for selected-instantiation docs.
 - Domain-neutrality evidence: tests use neutral target fixtures.
+- Local validation evidence: `make validate-pr` passed lint, Pyright, package
+  28, unit 290, contract 33, integration 96, examples 9, and build;
+  `make test-summary` passed and wrote `build/test-summary.md`.
 
 ### Phase Workflow State
 
-- Phase execution plan: pending
-- Planning/refinement budget: pending
-- Implementation/refinement budget: pending
-- PR review budget: pending
-- Blocker-resolution budget: pending
-- Pre-submit blocker gate: Phase 1 and Phase 2 merged
+- Phase execution plan: completed in `docs/roadmap/stage-1/phases/stage-1-selected-instantiation.md`
+- Planning/refinement budget: completed; no additional planning loop used
+- Implementation/refinement budget: completed locally; no blocker loop used
+- PR review budget: active; PR opened and CI pending
+- Blocker-resolution budget: 0/3 used
+- Pre-submit blocker gate: Phase 1 and Phase 2 merged; local validation passed
 - Merge record: pending
 
 ### Risks And Stop Conditions

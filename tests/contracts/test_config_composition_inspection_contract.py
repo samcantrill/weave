@@ -150,6 +150,29 @@ def test_commandless_config_args_result_shape_omits_command_and_objects(tmp_path
     assert cast(dict[str, object], payload["composed_config"])["resolved"] == {"name": "next"}
 
 
+def test_selected_objects_are_excluded_from_plain_data_export(tmp_path: Path) -> None:
+    from tests.support.config_samples import RuntimePlaceholder
+
+    path = tmp_path / "base.yaml"
+    path.write_text(
+        "service:\n"
+        "  _target_: tests.support.config_samples:RuntimePlaceholder\n"
+        "  value: selected\n",
+        encoding="utf-8",
+    )
+
+    result = ConfigEntrypoint(
+        base_config_path=path,
+        selected_objects={"service": "service"},
+    ).compose_args()
+
+    assert isinstance(result.objects["service"], RuntimePlaceholder)
+    payload = result.to_dict()
+    assert "objects" not in payload
+    assert payload["selected_objects"] == [{"key": "service", "path": "service"}]
+    json.dumps(payload, sort_keys=True)
+
+
 def test_base_resolution_details_are_result_metadata_not_artifacts(tmp_path: Path) -> None:
     path = tmp_path / "base.yaml"
     path.write_text("name: base\n", encoding="utf-8")
