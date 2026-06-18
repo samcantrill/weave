@@ -50,6 +50,8 @@ def test_public_config_args_import_surface_is_narrow() -> None:
         "inspect_config_from_argv",
         "ConfigArgsCompositionResult",
         "ConfigArgsInspectionResult",
+        "ConfigBaseRequest",
+        "ConfigBaseResolution",
         "ConfigArgvCompositionResult",
         "ConfigArgvInspectionResult",
         "ConfigArgvWarning",
