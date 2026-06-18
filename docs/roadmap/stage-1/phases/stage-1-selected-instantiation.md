@@ -2,10 +2,11 @@
 
 ## Metadata
 
-- Status: local implementation and validation complete; PR pending
+- Status: PR open; CI pending
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 3: Selected instantiation and object separation`
 - Branch: `codex/stage-1-selected-instantiation`
+- PR: https://github.com/samcantrill/weave/pull/3
 - Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-selected-instantiation`
 - Phase execution plan path: `docs/roadmap/stage-1/phases/stage-1-selected-instantiation.md`
 - Full plan: `docs/roadmap/stage-1/implementation-plan.md`
