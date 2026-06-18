@@ -5,8 +5,8 @@ Roadmap stage: `v1`
 Planning document: `docs/roadmap/stage-1/planning.md`
 Workflow: `.codex/workflows/roadmap-stage-implementation.md`
 Target branch: `develop`
-Current phase: Phase 1 PR open against `develop`
-Blockers: none for implementation-plan quality gate; remote target branch mismatch remains unresolved for PR targeting
+Current phase: Phase 1 merged; Phase 2 pending
+Blockers: none for Phase 1; Phase 2 execution planning pending
 
 ## Summary
 
@@ -228,7 +228,7 @@ The interfaces are intentionally generic:
 
 | Phase | Slug | Status | Branch | PR | Ownership | Goal | Validation | Examples |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `stage-1-commandless-contracts` | pr_open | `codex/stage-1-commandless-contracts` | https://github.com/samcantrill/weave/pull/1 | `src/weave/api.py`, `src/weave/_argv.py`, `src/weave/__init__.py`, `tests/unit/config/`, `tests/integration/config/`, import tests | Add commandless parser, `ConfigEntrypoint`, preferred commandless helpers, fixed-base compose/inspect, result records, export policy, and migration diagnostics. | `make test-unit`, `make test-integration`, package import tests, commandless result-shape tests. | None yet; docs/examples in Phase 4. |
+| 1 | `stage-1-commandless-contracts` | merged | `codex/stage-1-commandless-contracts` | https://github.com/samcantrill/weave/pull/1 | `src/weave/api.py`, `src/weave/_argv.py`, `src/weave/__init__.py`, `tests/unit/config/`, `tests/integration/config/`, import tests | Add commandless parser, `ConfigEntrypoint`, preferred commandless helpers, fixed-base compose/inspect, result records, export policy, and migration diagnostics. | `make test-unit`, `make test-integration`, package import tests, commandless result-shape tests. | None yet; docs/examples in Phase 4. |
 | 2 | `stage-1-base-resolution` | pending | `codex/stage-1-base-resolution` | pending | `src/weave/api.py`, resolver tests | Add generic base resolver request/resolution and metadata boundaries. | Unit/integration tests for resolver success/failure and serialization boundaries. | Resolver example draft only if useful; final docs in Phase 4. |
 | 3 | `stage-1-selected-instantiation` | pending | `codex/stage-1-selected-instantiation` | pending | `src/weave/api.py`, instantiation integration tests | Add selected dot-path instantiation and object/result separation. | Unit/integration tests for selectors, runtime injection, non-target values, and no-import default. | Example draft only if useful; final docs in Phase 4. |
 | 4 | `stage-1-docs-hardening` | pending | `codex/stage-1-docs-hardening` | pending | `docs/`, `examples/`, example tests, migrated argv docs/tests | Align docs, examples, behavior matrix, README snippets, and migration notes. | Example harness, docs review, focused tests, and `make validate-pr` if available. | Project-owned adapter, resolver, selected instantiation, migration diagnostics. |
@@ -241,7 +241,7 @@ The interfaces are intentionally generic:
 
 ## Phase 1: Commandless Public Contracts
 
-Status: pr_open
+Status: merged
 Slug: `stage-1-commandless-contracts`
 Branch: `codex/stage-1-commandless-contracts`
 Worktree: `/nas/home/can134/work/weave-worktrees/stage-1-commandless-contracts`
@@ -339,7 +339,7 @@ Workflow path: expanded path
 - PR review budget: unused
 - Blocker-resolution budget: 0/3 used
 - Pre-submit blocker gate: satisfied for local implementation; PR preparation pending
-- Merge record: pending
+- Merge record: `docs/roadmap/stage-1/phases/stage-1-commandless-contracts-merge-record.md`
 
 ### Risks And Stop Conditions
 

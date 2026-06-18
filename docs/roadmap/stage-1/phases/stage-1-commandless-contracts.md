@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: PR open; CI pending
+- Status: merged
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 1: Commandless public contracts`
 - Branch: `codex/stage-1-commandless-contracts`
@@ -13,7 +13,7 @@
 - Stack predecessor: none
 - Base branch: `develop` in the stage plan; local fallback is `main`
 - Target branch: `develop` in the stage plan; local fallback is `main`
-- Merge eligibility: eligible after focused validation and final PR checks pass, with target branch corrected if `develop` becomes available
+- Merge eligibility: merged into `develop` after local validation and GitHub CI passed
 - Workflow path: expanded path
 - Successor dependency notes: Phase 2 depends on this commandless contract and result shape.
 - Plan quality gate: passed in the full implementation plan
@@ -205,5 +205,6 @@ make test-summary
 - Refinement summary: not run; implementation refinement budget remains unused.
 - Blocker-resolution summary: 0/3 used.
 - PR preparation: PR opened against `develop`: https://github.com/samcantrill/weave/pull/1.
-- Stack maintenance: no branch/worktree cleanup performed yet; merge is pending CI.
-- Remaining blockers: remote target branch mismatch remains unresolved for PR targeting; original checkout still contains unrelated pre-existing roadmap/docs changes.
+- Merge: merged via `e4e9221` after GitHub `CI/checks` passed.
+- Stack maintenance: remote phase branch deleted by GitHub merge; local cleanup pending.
+- Remaining blockers: none for Phase 1; original checkout still contains unrelated pre-existing roadmap/docs changes.
