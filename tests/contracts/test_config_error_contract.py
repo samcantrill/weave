@@ -237,25 +237,25 @@ def test_existing_config_error_names_accept_structured_context() -> None:
 
 
 
-def test_public_argv_helper_errors_preserve_structured_context(tmp_path: Path) -> None:
-    from weave import compose_config_from_argv
+def test_public_config_args_helper_errors_preserve_structured_context(tmp_path: Path) -> None:
+    from weave import compose_config_from_args
 
     base = tmp_path / "configs" / "base.yaml"
     base.parent.mkdir(parents=True)
     base.write_text("data:\n  value: base\n", encoding="utf-8")
 
     with pytest.raises(ConfigValidationError) as exc:
-        compose_config_from_argv(["run", str(base), "data/=missing"])
+        compose_config_from_args(base, ["data/=missing"])
 
     context = exc.value.context
     assert context is not None
     assert context.code == "missing_scoped_overlay_source"
-    assert context.source_kind == "argv"
-    assert context.source_path == "<argv>"
-    assert context.directive == "argv_config_shorthand"
+    assert context.source_kind == "config_args"
+    assert context.source_path == "<config-args>"
+    assert context.directive == "config_args_shorthand"
     assert context.remediation is not None
     assert context.details is not None
-    assert context.details["command"] == "run"
+    assert "command" not in context.details
     assert context.details["token"] == "data/=missing"
     assert context.details["scope_path"] == ["data"]
     assert context.details["rhs"] == "missing"

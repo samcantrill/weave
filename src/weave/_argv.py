@@ -15,6 +15,7 @@ from .provenance import ParsedOverride
 ArgvValueOperation = Literal["update", "add"]
 ScopedOverlayOperation = Literal["update", "add"]
 ScopedOverlayCandidateOrigin = Literal["absolute", "scope_directory", "base_directory"]
+DiagnosticSource = Literal["argv", "config_args"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +183,38 @@ class ParsedConfigArgv:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ParsedConfigArgs:
+    base_config_path: str
+    value_overrides: tuple[ArgvValueOverride, ...]
+    scoped_overlays: tuple[ArgvScopedOverlay, ...]
+    unparsed_args: tuple[ArgvUnparsedArg, ...]
+
+    def __post_init__(self) -> None:
+        if not self.base_config_path:
+            raise ConfigValidationError("ParsedConfigArgs.base_config_path must be non-empty")
+
+        object.__setattr__(self, "value_overrides", tuple(self.value_overrides))
+        object.__setattr__(self, "scoped_overlays", tuple(self.scoped_overlays))
+        object.__setattr__(self, "unparsed_args", tuple(self.unparsed_args))
+
+    @property
+    def override_strings(self) -> tuple[str, ...]:
+        return tuple(override.raw for override in self.value_overrides)
+
+    @property
+    def unparsed_arg_strings(self) -> tuple[str, ...]:
+        return tuple(arg.raw for arg in self.unparsed_args)
+
+    def to_dict(self) -> dict[str, PlainData]:
+        return {
+            "base_config_path": self.base_config_path,
+            "value_overrides": [override.to_dict() for override in self.value_overrides],
+            "scoped_overlays": [overlay.to_dict() for overlay in self.scoped_overlays],
+            "unparsed_args": [arg.to_dict() for arg in self.unparsed_args],
+        }
+
+
 def parse_config_argv(
     argv: Sequence[str],
     *,
@@ -255,7 +288,8 @@ def parse_config_argv(
                     rhs=rhs,
                     order=order,
                     base_config_path=base_config_path,
-                    command=command,
+                    diagnostic_source="argv",
+                    details_context={"command": command},
                 )
             )
             continue
@@ -292,6 +326,86 @@ def parse_config_argv(
     )
 
 
+def parse_config_args(
+    config_args: Sequence[str],
+    *,
+    base_config_path: str | Path,
+    allow_unparsed: bool = False,
+) -> ParsedConfigArgs:
+    """Parse commandless config args into config composition records."""
+
+    normalized_base_config_path = _normalize_config_base_path(base_config_path)
+    tokens = _normalize_config_args(config_args)
+    if not isinstance(allow_unparsed, bool):
+        raise _config_args_error(
+            "allow_unparsed must be a bool",
+            code="invalid_allow_unparsed",
+            order=-1,
+            details={"actual_type": type(allow_unparsed).__name__},
+        )
+
+    value_overrides: list[ArgvValueOverride] = []
+    scoped_overlays: list[ArgvScopedOverlay] = []
+    unparsed_args: list[ArgvUnparsedArg] = []
+
+    for order, token in enumerate(tokens):
+        if token.startswith("-"):
+            unparsed_args.append(ArgvUnparsedArg(raw=token, order=order))
+            continue
+        if "=" not in token:
+            raise _config_args_error(
+                f"Invalid config arg at order {order}: {token!r}",
+                code="malformed_config_arg",
+                order=order,
+                details={"token": token},
+            )
+
+        lhs, rhs = token.split("=", 1)
+        lhs = lhs.strip()
+        if "/" in lhs:
+            scoped_overlays.append(
+                _parse_scoped_overlay_token(
+                    raw=token,
+                    lhs=lhs,
+                    rhs=rhs,
+                    order=order,
+                    base_config_path=normalized_base_config_path,
+                    diagnostic_source="config_args",
+                    details_context={},
+                )
+            )
+            continue
+
+        try:
+            parsed_override = parse_overrides((token,))[0]
+        except OverrideParseError as exc:
+            raise _config_args_error(
+                f"Invalid value override config arg at order {order}: {token!r}",
+                code="invalid_value_override",
+                order=order,
+                details={"token": token, "error": str(exc)},
+            ) from exc
+        value_overrides.append(ArgvValueOverride.from_parsed_override(parsed_override, order=order))
+
+    if unparsed_args and not allow_unparsed:
+        raise _config_args_error(
+            "Unparsed config args are not allowed",
+            code="disallowed_unparsed_args",
+            order=unparsed_args[0].order,
+            details={
+                "unparsed_args": [arg.raw for arg in unparsed_args],
+                "unparsed_arg_orders": [arg.order for arg in unparsed_args],
+            },
+        )
+
+    return ParsedConfigArgs(
+        base_config_path=normalized_base_config_path,
+        value_overrides=tuple(value_overrides),
+        scoped_overlays=tuple(scoped_overlays),
+        unparsed_args=tuple(unparsed_args),
+    )
+
+
 def _normalize_argv(argv: Sequence[str]) -> tuple[str, ...]:
     if isinstance(argv, str):
         raise _argv_error(
@@ -313,6 +427,64 @@ def _normalize_argv(argv: Sequence[str]) -> tuple[str, ...]:
                 details={"actual_type": type(token).__name__},
             )
     return tokens
+
+
+def _normalize_config_args(config_args: Sequence[str]) -> tuple[str, ...]:
+    if config_args is None:
+        raise _config_args_error(
+            "config_args must be provided explicitly",
+            code="invalid_config_args",
+            order=-1,
+            details={"actual_type": "NoneType"},
+        )
+    if isinstance(config_args, str):
+        raise _config_args_error(
+            "config_args must be a sequence of strings, not one string",
+            code="invalid_config_args",
+            order=-1,
+            details={"actual_type": "str"},
+        )
+
+    try:
+        tokens = tuple(config_args)
+    except TypeError as exc:
+        raise _config_args_error(
+            "config_args must be a sequence of strings",
+            code="invalid_config_args",
+            order=-1,
+            details={"actual_type": type(config_args).__name__},
+        ) from exc
+
+    for order, token in enumerate(tokens):
+        if not isinstance(token, str):
+            raise _config_args_error(
+                f"config arg at order {order} must be text",
+                code="invalid_config_arg_token_type",
+                order=order,
+                actual=type(token).__name__,
+                expected="str",
+                details={"actual_type": type(token).__name__},
+            )
+    return tokens
+
+
+def _normalize_config_base_path(base_config_path: str | Path) -> str:
+    if not isinstance(base_config_path, (str, Path)):
+        raise _config_args_error(
+            "base_config_path must be a path string or Path",
+            code="invalid_base_config_path",
+            order=-1,
+            details={"actual_type": type(base_config_path).__name__},
+        )
+
+    normalized = str(base_config_path)
+    if normalized == "":
+        raise _config_args_error(
+            "base_config_path must be non-empty",
+            code="empty_base_config_path",
+            order=-1,
+        )
+    return normalized
 
 
 def _normalize_command_choices(command_choices: Collection[str] | None) -> tuple[str, ...] | None:
@@ -345,21 +517,24 @@ def _parse_scoped_overlay_token(
     rhs: str,
     order: int,
     base_config_path: str,
-    command: str,
+    diagnostic_source: DiagnosticSource,
+    details_context: dict[str, PlainData],
 ) -> ArgvScopedOverlay:
     if not lhs.endswith("/"):
-        raise _argv_error(
+        raise _token_error(
+            diagnostic_source,
             f"Scoped overlay token must end its left-hand side with '/': {raw!r}",
             code="invalid_scoped_overlay_marker",
             order=order,
-            details={"command": command, "token": raw, "lhs": lhs},
+            details={**details_context, "token": raw, "lhs": lhs},
         )
     if not rhs:
-        raise _argv_error(
+        raise _token_error(
+            diagnostic_source,
             f"Scoped overlay token has empty RHS: {raw!r}",
             code="missing_scoped_overlay_rhs",
             order=order,
-            details={"command": command, "token": raw, "lhs": lhs},
+            details={**details_context, "token": raw, "lhs": lhs},
         )
 
     operation: ScopedOverlayOperation = "update"
@@ -369,11 +544,12 @@ def _parse_scoped_overlay_token(
         scope_expression = scope_expression[1:]
 
     if scope_expression == "":
-        raise _argv_error(
+        raise _token_error(
+            diagnostic_source,
             "Root scoped overlays are not supported",
             code="unsupported_root_overlay",
             order=order,
-            details={"command": command, "token": raw, "lhs": lhs, "rhs": rhs},
+            details={**details_context, "token": raw, "lhs": lhs, "rhs": rhs},
         )
 
     scope_path = tuple(scope_expression.split("/"))
@@ -386,12 +562,13 @@ def _parse_scoped_overlay_token(
         None,
     )
     if invalid_segment is not None:
-        raise _argv_error(
+        raise _token_error(
+            diagnostic_source,
             f"Invalid scoped overlay path in token: {raw!r}",
             code="invalid_scoped_overlay_scope",
             order=order,
             details={
-                "command": command,
+                **details_context,
                 "token": raw,
                 "scope_path": list(scope_path),
                 "invalid_segment": invalid_segment,
@@ -405,12 +582,13 @@ def _parse_scoped_overlay_token(
     )
     resolved_path = next((candidate.path for candidate in candidates if candidate.exists), None)
     if resolved_path is None:
-        raise _argv_error(
+        raise _token_error(
+            diagnostic_source,
             f"Could not resolve scoped overlay source for token: {raw!r}",
             code="missing_scoped_overlay_source",
             order=order,
             details={
-                "command": command,
+                **details_context,
                 "token": raw,
                 "scope_path": list(scope_path),
                 "rhs": rhs,
@@ -478,6 +656,35 @@ def _normalize_path(path: Path) -> Path:
     return path.resolve(strict=False)
 
 
+def _token_error(
+    source: DiagnosticSource,
+    message: str,
+    *,
+    code: str,
+    order: int,
+    expected: PlainData | None = None,
+    actual: PlainData | None = None,
+    details: dict[str, PlainData] | None = None,
+) -> ConfigValidationError:
+    if source == "argv":
+        return _argv_error(
+            message,
+            code=code,
+            order=order,
+            expected=expected,
+            actual=actual,
+            details=details,
+        )
+    return _config_args_error(
+        message,
+        code=code,
+        order=order,
+        expected=expected,
+        actual=actual,
+        details=details,
+    )
+
+
 def _argv_error(
     message: str,
     *,
@@ -498,6 +705,31 @@ def _argv_error(
             actual=actual,
             directive="argv_config_shorthand",
             remediation=_argv_remediation(code),
+            details=details,
+        ),
+    )
+
+
+def _config_args_error(
+    message: str,
+    *,
+    code: str,
+    order: int,
+    expected: PlainData | None = None,
+    actual: PlainData | None = None,
+    details: dict[str, PlainData] | None = None,
+) -> ConfigValidationError:
+    return ConfigValidationError(
+        message,
+        context=ConfigErrorContext(
+            code=code,
+            source_kind="config_args",
+            source_order=order,
+            source_path="<config-args>",
+            expected=expected,
+            actual=actual,
+            directive="config_args_shorthand",
+            remediation=_config_args_remediation(code),
             details=details,
         ),
     )
@@ -525,6 +757,28 @@ def _argv_remediation(code: str) -> str | None:
     return None
 
 
+def _config_args_remediation(code: str) -> str | None:
+    if code == "invalid_config_args":
+        return "Pass config_args as an explicit sequence of strings."
+    if code == "invalid_config_arg_token_type":
+        return "Pass only string values in config_args."
+    if code in {"invalid_base_config_path", "empty_base_config_path"}:
+        return "Pass a non-empty base_config_path explicitly."
+    if code == "disallowed_unparsed_args":
+        return "Pass allow_unparsed=True when project parser leftovers should be returned to the caller."
+    if code == "malformed_config_arg":
+        return "Use key=value for value overrides, scope/=target for scoped overlays, or -prefixed passthrough args."
+    if code == "invalid_value_override":
+        return "Use existing value override syntax for no-slash config args."
+    if code == "invalid_scoped_overlay_marker":
+        return "Use a trailing slash before '=' for scoped overlays, for example 'model/=variant'."
+    if code == "unsupported_root_overlay":
+        return "Use base_config_path to choose the root config; scoped overlays must target a non-root scope."
+    if code == "missing_scoped_overlay_source":
+        return "Provide an existing scoped overlay file or an RHS that resolves through the documented lookup order."
+    return None
+
+
 __all__ = [
     "ArgvScopedOverlay",
     "ArgvUnparsedArg",
@@ -532,4 +786,6 @@ __all__ = [
     "ParsedConfigArgv",
     "ScopedOverlayCandidate",
     "parse_config_argv",
+    "ParsedConfigArgs",
+    "parse_config_args",
 ]

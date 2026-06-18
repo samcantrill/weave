@@ -9,7 +9,7 @@ pytest.importorskip("pydantic")
 pytest.importorskip("omegaconf")
 pytest.importorskip("yaml")
 
-from weave import RecipeCatalog, inspect_config_composition
+from weave import RecipeCatalog, compose_config_from_args, inspect_config_composition
 from weave._argv import parse_config_argv
 from weave.compose import _inspect_config_composition_with_argv_scoped_overlays
 from weave.fingerprints import ARTIFACT_SAFE_FINGERPRINT_LABEL
@@ -127,3 +127,22 @@ def test_private_argv_scoped_overlay_stage_records_empty_argv_path(tmp_path: Pat
     assert stage_names.index("argv_scoped_overlays") == stage_names.index("file_include_expansion") + 1
     assert stage.payload["scoped_overlay_count"] == 0
     assert stage.payload["scoped_overlays"] == []
+
+
+
+def test_commandless_config_args_result_shape_omits_command_and_objects(tmp_path: Path) -> None:
+    path = tmp_path / "base.yaml"
+    path.write_text("name: base\n", encoding="utf-8")
+
+    result = compose_config_from_args(path, ["name=next"])
+
+    payload = result.to_dict()
+    assert payload["base_config_path"] == str(path)
+    assert "parsed_args" in payload
+    assert "command" not in payload
+    assert "parsed_argv" not in payload
+    assert "objects" not in payload
+    parsed_payload = cast(dict[str, object], payload["parsed_args"])
+    assert "command" not in parsed_payload
+    assert "value_overrides" in parsed_payload
+    assert cast(dict[str, object], payload["composed_config"])["resolved"] == {"name": "next"}

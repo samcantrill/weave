@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,14 +11,15 @@ from ._argv import (
     ArgvScopedOverlay,
     ArgvUnparsedArg,
     ArgvValueOverride,
+    ParsedConfigArgs,
     ParsedConfigArgv,
     ScopedOverlayCandidate,
     ScopedOverlayCandidateOrigin,
-    parse_config_argv as _parse_config_argv,
+    parse_config_args as _parse_config_args,
 )
 from .digests import Fingerprint
 from .plain import PlainData, ensure_plain_data, to_plain_data
-from .errors import ConfigError, ConfigValidationError
+from .errors import ConfigError, ConfigErrorContext, ConfigValidationError
 
 from .artifacts import (
     SCHEMA_VERSION as ARTIFACT_SCHEMA_VERSION,
@@ -314,6 +314,194 @@ class ConfigArgvInspectionResult:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ConfigArgsCompositionResult:
+    base_config_path: str
+    parsed_args: ParsedConfigArgs
+    value_overrides: tuple[ArgvValueOverride, ...]
+    scoped_overlays: tuple[ArgvScopedOverlay, ...]
+    unparsed_args: tuple[ArgvUnparsedArg, ...]
+    warnings: tuple[ConfigArgvWarning, ...]
+    composed_config: ComposedConfig
+
+    def __post_init__(self) -> None:
+        _validate_config_args_result_common(
+            base_config_path=self.base_config_path,
+            parsed_args=self.parsed_args,
+            value_overrides=self.value_overrides,
+            scoped_overlays=self.scoped_overlays,
+            unparsed_args=self.unparsed_args,
+            warnings=self.warnings,
+        )
+        if not isinstance(self.composed_config, ComposedConfig):
+            raise ConfigValidationError("ConfigArgsCompositionResult.composed_config must be ComposedConfig")
+        object.__setattr__(self, "value_overrides", tuple(self.value_overrides))
+        object.__setattr__(self, "scoped_overlays", tuple(self.scoped_overlays))
+        object.__setattr__(self, "unparsed_args", tuple(self.unparsed_args))
+        object.__setattr__(self, "warnings", tuple(self.warnings))
+
+    def to_dict(self) -> dict[str, PlainData]:
+        return {
+            **_config_args_result_metadata_to_dict(
+                base_config_path=self.base_config_path,
+                parsed_args=self.parsed_args,
+                value_overrides=self.value_overrides,
+                scoped_overlays=self.scoped_overlays,
+                unparsed_args=self.unparsed_args,
+                warnings=self.warnings,
+            ),
+            "composed_config": _composed_config_to_dict(self.composed_config),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigArgsInspectionResult:
+    base_config_path: str
+    parsed_args: ParsedConfigArgs
+    value_overrides: tuple[ArgvValueOverride, ...]
+    scoped_overlays: tuple[ArgvScopedOverlay, ...]
+    unparsed_args: tuple[ArgvUnparsedArg, ...]
+    warnings: tuple[ConfigArgvWarning, ...]
+    inspection: ConfigCompositionInspection
+
+    def __post_init__(self) -> None:
+        _validate_config_args_result_common(
+            base_config_path=self.base_config_path,
+            parsed_args=self.parsed_args,
+            value_overrides=self.value_overrides,
+            scoped_overlays=self.scoped_overlays,
+            unparsed_args=self.unparsed_args,
+            warnings=self.warnings,
+        )
+        if not isinstance(self.inspection, ConfigCompositionInspection):
+            raise ConfigValidationError("ConfigArgsInspectionResult.inspection must be ConfigCompositionInspection")
+        object.__setattr__(self, "value_overrides", tuple(self.value_overrides))
+        object.__setattr__(self, "scoped_overlays", tuple(self.scoped_overlays))
+        object.__setattr__(self, "unparsed_args", tuple(self.unparsed_args))
+        object.__setattr__(self, "warnings", tuple(self.warnings))
+
+    def to_composed_config(self) -> ComposedConfig:
+        return self.inspection.to_composed_config()
+
+    def to_dict(self) -> dict[str, PlainData]:
+        return {
+            **_config_args_result_metadata_to_dict(
+                base_config_path=self.base_config_path,
+                parsed_args=self.parsed_args,
+                value_overrides=self.value_overrides,
+                scoped_overlays=self.scoped_overlays,
+                unparsed_args=self.unparsed_args,
+                warnings=self.warnings,
+            ),
+            "inspection": _inspection_to_dict(self.inspection),
+        }
+
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigEntrypoint:
+    base_config_path: str | Path
+    recipe_catalog: RecipeCatalog | None = None
+    allow_unparsed: bool = False
+    include_raw_source_snapshots: bool = False
+
+    def __post_init__(self) -> None:
+        if self.recipe_catalog is not None and not isinstance(self.recipe_catalog, RecipeCatalog):
+            raise ConfigValidationError("recipe_catalog must be a RecipeCatalog")
+        if not isinstance(self.include_raw_source_snapshots, bool):
+            raise ConfigValidationError("include_raw_source_snapshots must be a bool")
+
+        parsed = _parse_config_args(
+            (),
+            base_config_path=self.base_config_path,
+            allow_unparsed=self.allow_unparsed,
+        )
+        object.__setattr__(self, "base_config_path", parsed.base_config_path)
+
+    def compose_args(self, config_args: Sequence[str] = ()) -> ConfigArgsCompositionResult:
+        return compose_config_from_args(
+            self.base_config_path,
+            config_args=config_args,
+            allow_unparsed=self.allow_unparsed,
+            recipe_catalog=self.recipe_catalog,
+            include_raw_source_snapshots=self.include_raw_source_snapshots,
+        )
+
+    def inspect_args(self, config_args: Sequence[str] = ()) -> ConfigArgsInspectionResult:
+        return inspect_config_args(
+            self.base_config_path,
+            config_args=config_args,
+            allow_unparsed=self.allow_unparsed,
+            recipe_catalog=self.recipe_catalog,
+            include_raw_source_snapshots=self.include_raw_source_snapshots,
+        )
+
+
+def compose_config_from_args(
+    base_config_path: str | Path,
+    config_args: Sequence[str] = (),
+    *,
+    allow_unparsed: bool = False,
+    recipe_catalog: RecipeCatalog | None = None,
+    include_raw_source_snapshots: bool = False,
+) -> ConfigArgsCompositionResult:
+    inspection_result = inspect_config_args(
+        base_config_path=base_config_path,
+        config_args=config_args,
+        allow_unparsed=allow_unparsed,
+        recipe_catalog=recipe_catalog,
+        include_raw_source_snapshots=include_raw_source_snapshots,
+    )
+    return ConfigArgsCompositionResult(
+        base_config_path=inspection_result.base_config_path,
+        parsed_args=inspection_result.parsed_args,
+        value_overrides=inspection_result.value_overrides,
+        scoped_overlays=inspection_result.scoped_overlays,
+        unparsed_args=inspection_result.unparsed_args,
+        warnings=inspection_result.warnings,
+        composed_config=inspection_result.inspection.to_composed_config(),
+    )
+
+
+def inspect_config_args(
+    base_config_path: str | Path,
+    config_args: Sequence[str] = (),
+    *,
+    allow_unparsed: bool = False,
+    recipe_catalog: RecipeCatalog | None = None,
+    include_raw_source_snapshots: bool = False,
+) -> ConfigArgsInspectionResult:
+    from .compose import _inspect_config_composition_with_argv_scoped_overlays
+
+    if recipe_catalog is not None and not isinstance(recipe_catalog, RecipeCatalog):
+        raise ConfigValidationError("recipe_catalog must be a RecipeCatalog")
+    if not isinstance(include_raw_source_snapshots, bool):
+        raise ConfigValidationError("include_raw_source_snapshots must be a bool")
+
+    catalog = recipe_catalog if recipe_catalog is not None else _get_default_recipe_catalog()
+    parsed = _parse_config_args(
+        config_args,
+        base_config_path=base_config_path,
+        allow_unparsed=allow_unparsed,
+    )
+    inspection = _inspect_config_composition_with_argv_scoped_overlays(
+        parsed.base_config_path,
+        recipe_catalog=catalog,
+        argv_scoped_overlays=parsed.scoped_overlays,
+        overrides=parsed.override_strings,
+        include_raw_source_snapshots=include_raw_source_snapshots,
+    )
+    warnings = _argv_warnings(parsed=parsed, recipe_catalog=catalog)
+    return ConfigArgsInspectionResult(
+        base_config_path=parsed.base_config_path,
+        parsed_args=parsed,
+        value_overrides=parsed.value_overrides,
+        scoped_overlays=parsed.scoped_overlays,
+        unparsed_args=parsed.unparsed_args,
+        warnings=warnings,
+        inspection=inspection,
+    )
+
 
 def compose_config_from_argv(
     argv: Sequence[str] | None = None,
@@ -322,7 +510,7 @@ def compose_config_from_argv(
     allow_unparsed: bool = False,
     recipe_catalog: RecipeCatalog | None = None,
     include_raw_source_snapshots: bool = False,
-) -> ConfigArgvCompositionResult:
+) -> ConfigArgsCompositionResult:
     inspection_result = inspect_config_from_argv(
         argv=argv,
         command_choices=command_choices,
@@ -330,10 +518,9 @@ def compose_config_from_argv(
         recipe_catalog=recipe_catalog,
         include_raw_source_snapshots=include_raw_source_snapshots,
     )
-    return ConfigArgvCompositionResult(
-        command=inspection_result.command,
+    return ConfigArgsCompositionResult(
         base_config_path=inspection_result.base_config_path,
-        parsed_argv=inspection_result.parsed_argv,
+        parsed_args=inspection_result.parsed_args,
         value_overrides=inspection_result.value_overrides,
         scoped_overlays=inspection_result.scoped_overlays,
         unparsed_args=inspection_result.unparsed_args,
@@ -349,47 +536,170 @@ def inspect_config_from_argv(
     allow_unparsed: bool = False,
     recipe_catalog: RecipeCatalog | None = None,
     include_raw_source_snapshots: bool = False,
-) -> ConfigArgvInspectionResult:
-    from .compose import _inspect_config_composition_with_argv_scoped_overlays
+) -> ConfigArgsInspectionResult:
+    tokens = _normalize_retained_argv(argv)
+    choices = _normalize_retained_command_choices(command_choices)
+    if _looks_like_command_first_argv(tokens, command_choices=choices):
+        raise _argv_helper_error(
+            "compose_config_from_argv no longer accepts '<command> <base-config> ...' argv shapes",
+            code="command_first_argv_migration",
+            order=0,
+            details={
+                "legacy_shape": "<command> <base-config> ...",
+                "first_token": tokens[0],
+                "base_config_path_candidate": tokens[1],
+            },
+        )
+    if choices is not None:
+        raise _argv_helper_error(
+            "command_choices are not supported by commandless argv helpers",
+            code="unsupported_command_choices",
+            order=-1,
+            details={"command_choices": list(choices)},
+        )
+    if not tokens:
+        raise _argv_helper_error(
+            "Missing base config path token in argv",
+            code="missing_base_config_path",
+            order=0,
+        )
+    if tokens[0] == "":
+        raise _argv_helper_error(
+            "Base config path token must be non-empty",
+            code="empty_base_config_path",
+            order=0,
+        )
 
-    if recipe_catalog is not None and not isinstance(recipe_catalog, RecipeCatalog):
-        raise ConfigValidationError("recipe_catalog must be a RecipeCatalog")
-    if not isinstance(include_raw_source_snapshots, bool):
-        raise ConfigValidationError("include_raw_source_snapshots must be a bool")
-
-    catalog = recipe_catalog if recipe_catalog is not None else _get_default_recipe_catalog()
-    parsed = _parse_config_argv(
-        _normalize_public_argv(argv),
-        command_choices=command_choices,
+    return inspect_config_args(
+        base_config_path=tokens[0],
+        config_args=tokens[1:],
         allow_unparsed=allow_unparsed,
-    )
-    inspection = _inspect_config_composition_with_argv_scoped_overlays(
-        parsed.base_config_path,
-        recipe_catalog=catalog,
-        argv_scoped_overlays=parsed.scoped_overlays,
-        overrides=parsed.override_strings,
+        recipe_catalog=recipe_catalog,
         include_raw_source_snapshots=include_raw_source_snapshots,
     )
-    warnings = _argv_warnings(parsed=parsed, recipe_catalog=catalog)
-    return ConfigArgvInspectionResult(
-        command=parsed.command,
-        base_config_path=parsed.base_config_path,
-        parsed_argv=parsed,
-        value_overrides=parsed.value_overrides,
-        scoped_overlays=parsed.scoped_overlays,
-        unparsed_args=parsed.unparsed_args,
-        warnings=warnings,
-        inspection=inspection,
+
+
+def _normalize_retained_argv(argv: Sequence[str] | None) -> tuple[str, ...]:
+    if argv is None:
+        raise _argv_helper_error(
+            "argv must be provided explicitly; implicit sys.argv is not supported",
+            code="missing_explicit_argv",
+            order=-1,
+        )
+    if isinstance(argv, str):
+        raise _argv_helper_error(
+            "argv must be a sequence of strings, not one string",
+            code="invalid_argv",
+            order=-1,
+            details={"actual_type": "str"},
+        )
+
+    try:
+        tokens = tuple(argv)
+    except TypeError as exc:
+        raise _argv_helper_error(
+            "argv must be a sequence of strings",
+            code="invalid_argv",
+            order=-1,
+            details={"actual_type": type(argv).__name__},
+        ) from exc
+
+    for order, token in enumerate(tokens):
+        if not isinstance(token, str):
+            raise _argv_helper_error(
+                f"argv token at order {order} must be text",
+                code="invalid_argv_token_type",
+                order=order,
+                expected="str",
+                actual=type(token).__name__,
+                details={"actual_type": type(token).__name__},
+            )
+    return tokens
+
+
+def _normalize_retained_command_choices(command_choices: Collection[str] | None) -> tuple[str, ...] | None:
+    if command_choices is None:
+        return None
+    if isinstance(command_choices, str):
+        raise _argv_helper_error(
+            "command_choices are not supported by commandless argv helpers",
+            code="unsupported_command_choices",
+            order=-1,
+            details={"actual_type": "str"},
+        )
+
+    choices = tuple(command_choices)
+    for index, choice in enumerate(choices):
+        if not isinstance(choice, str) or choice == "":
+            raise _argv_helper_error(
+                "command_choices entries must be non-empty strings",
+                code="unsupported_command_choices",
+                order=-1,
+                details={"choice_index": index, "actual": repr(choice)},
+            )
+    return tuple(sorted(choices))
+
+
+def _looks_like_command_first_argv(tokens: tuple[str, ...], *, command_choices: tuple[str, ...] | None) -> bool:
+    if len(tokens) < 2:
+        return False
+    if command_choices is not None and tokens[0] in command_choices:
+        return True
+    if _looks_like_config_arg_token(tokens[0]):
+        return False
+    return _looks_like_base_config_path_token(tokens[1])
+
+
+def _looks_like_config_arg_token(token: str) -> bool:
+    return token.startswith("-") or "=" in token
+
+
+def _looks_like_base_config_path_token(token: str) -> bool:
+    return token.endswith((".yaml", ".yml")) or "/" in token or "\\" in token
+
+
+def _argv_helper_error(
+    message: str,
+    *,
+    code: str,
+    order: int,
+    expected: PlainData | None = None,
+    actual: PlainData | None = None,
+    details: dict[str, PlainData] | None = None,
+) -> ConfigValidationError:
+    return ConfigValidationError(
+        message,
+        context=ConfigErrorContext(
+            code=code,
+            source_kind="argv",
+            source_order=order,
+            source_path="<argv>",
+            expected=expected,
+            actual=actual,
+            directive="config_args_shorthand",
+            remediation=_argv_helper_remediation(code),
+            details=details,
+        ),
     )
 
 
-def _normalize_public_argv(argv: Sequence[str] | None) -> Sequence[str]:
-    if argv is None:
-        return tuple(sys.argv[1:])
-    return argv
+def _argv_helper_remediation(code: str) -> str | None:
+    if code == "command_first_argv_migration":
+        return "Use compose_config_from_args(base_config_path, config_args=...) or pass '<base-config> ...' without a command token."
+    if code == "missing_explicit_argv":
+        return "Pass an explicit argv sequence; implicit sys.argv is not supported."
+    if code in {"missing_base_config_path", "empty_base_config_path"}:
+        return "Pass argv as '<base-config> [config-args...]' or use compose_config_from_args(...)."
+    if code == "unsupported_command_choices":
+        return "Parse project commands downstream and pass only remaining config args to Weave."
+    if code == "invalid_argv":
+        return "Pass argv as an explicit sequence of strings."
+    if code == "invalid_argv_token_type":
+        return "Pass only string values in argv."
+    return None
 
 
-def _argv_warnings(*, parsed: ParsedConfigArgv, recipe_catalog: RecipeCatalog) -> tuple[ConfigArgvWarning, ...]:
+def _argv_warnings(*, parsed: ParsedConfigArgv | ParsedConfigArgs, recipe_catalog: RecipeCatalog) -> tuple[ConfigArgvWarning, ...]:
     candidates_by_override = {
         override: _warning_candidates(parsed.base_config_path, override)
         for override in parsed.value_overrides
@@ -487,6 +797,51 @@ def _lookup_dot_path(mapping: Mapping[str, PlainData], path: str) -> PlainData |
             return None
         current = current[segment]
     return current
+
+
+def _validate_config_args_result_common(
+    *,
+    base_config_path: str,
+    parsed_args: ParsedConfigArgs,
+    value_overrides: tuple[ArgvValueOverride, ...],
+    scoped_overlays: tuple[ArgvScopedOverlay, ...],
+    unparsed_args: tuple[ArgvUnparsedArg, ...],
+    warnings: tuple[ConfigArgvWarning, ...],
+) -> None:
+    if base_config_path == "":
+        raise ConfigValidationError("config args result base_config_path must be non-empty")
+    if not isinstance(parsed_args, ParsedConfigArgs):
+        raise ConfigValidationError("parsed_args must be ParsedConfigArgs")
+    if base_config_path != parsed_args.base_config_path:
+        raise ConfigValidationError("config args result metadata must match parsed_args")
+    if tuple(value_overrides) != parsed_args.value_overrides:
+        raise ConfigValidationError("value_overrides must mirror parsed_args.value_overrides")
+    if tuple(scoped_overlays) != parsed_args.scoped_overlays:
+        raise ConfigValidationError("scoped_overlays must mirror parsed_args.scoped_overlays")
+    if tuple(unparsed_args) != parsed_args.unparsed_args:
+        raise ConfigValidationError("unparsed_args must mirror parsed_args.unparsed_args")
+    for index, warning in enumerate(tuple(warnings)):
+        if not isinstance(warning, ConfigArgvWarning):
+            raise ConfigValidationError(f"warnings[{index}] must be ConfigArgvWarning")
+
+
+def _config_args_result_metadata_to_dict(
+    *,
+    base_config_path: str,
+    parsed_args: ParsedConfigArgs,
+    value_overrides: tuple[ArgvValueOverride, ...],
+    scoped_overlays: tuple[ArgvScopedOverlay, ...],
+    unparsed_args: tuple[ArgvUnparsedArg, ...],
+    warnings: tuple[ConfigArgvWarning, ...],
+) -> dict[str, PlainData]:
+    return {
+        "base_config_path": base_config_path,
+        "parsed_args": parsed_args.to_dict(),
+        "value_overrides": [override.to_dict() for override in value_overrides],
+        "scoped_overlays": [overlay.to_dict() for overlay in scoped_overlays],
+        "unparsed_args": [arg.to_dict() for arg in unparsed_args],
+        "warnings": [warning.to_dict() for warning in warnings],
+    }
 
 
 def _validate_argv_result_common(
@@ -679,16 +1034,22 @@ __all__ = [
     "ArgvUnparsedArg",
     "ArgvValueOverride",
     "ComposedConfig",
+    "ConfigArgsCompositionResult",
+    "ConfigArgsInspectionResult",
+    "ConfigEntrypoint",
     "ConfigArgvCompositionResult",
     "ConfigArgvInspectionResult",
     "ConfigArgvWarning",
     "ConfigCompositionInspection",
     "ConfigCompositionStageRecord",
+    "ParsedConfigArgs",
     "ParsedConfigArgv",
     "ScopedOverlayCandidate",
     "compose_config",
+    "compose_config_from_args",
     "compose_config_from_argv",
     "inspect_config_composition",
+    "inspect_config_args",
     "inspect_config_from_argv",
     "compose_config_with_catalog",
     "compare_config_artifact_fingerprints",
