@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- Status: PR open; CI pending
+- Status: merged
 - Feature focus: Stage 1 config entrypoint
 - PR title: `Stage 1 config entrypoint - Phase 2: Base resolution and metadata boundaries`
 - PR: https://github.com/samcantrill/weave/pull/2
@@ -14,7 +14,7 @@
 - Stack predecessor: Phase 1 merged to `develop`
 - Base branch: `develop`
 - Target branch: `develop`
-- Merge eligibility: eligible after PR CI passes and workflow metadata updates are refreshed with PR details
+- Merge eligibility: completed; PR #2 merged after CI passed and metadata was refreshed post-merge
 - Workflow path: expanded path
 - Successor dependency notes: Phase 3 depends on commandless result models and may combine selected instantiation with resolver metadata in tests.
 - Plan quality gate: passed in the full implementation plan
@@ -201,6 +201,6 @@ make test-summary
 - Implementation validation: focused Phase 2 tests passed; `make validate-pr` passed; `make test-summary` completed with package 28, unit 285, contract 32, integration 93, and examples 9 passing.
 - Refinement summary: narrowed `base_details` to commandless result records only and fixed pyright narrowing for resolver paths/details.
 - Blocker-resolution summary: 0/3 used; no blockers.
-- PR preparation: PR body drafted in `docs/roadmap/stage-1/phases/stage-1-base-resolution-pr-body.md`; PR #2 opened against `develop`.
-- Stack maintenance: branch is based on `develop`; no successor branches exist yet.
+- PR preparation: PR body drafted in `docs/roadmap/stage-1/phases/stage-1-base-resolution-pr-body.md`; PR #2 opened against `develop` and merged.
+- Stack maintenance: PR #2 merged into `develop`; no successor branches exist yet.
 - Remaining blockers: none

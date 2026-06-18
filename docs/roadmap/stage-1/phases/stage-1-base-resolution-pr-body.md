@@ -31,7 +31,7 @@ New tests implemented:
 | --- | --- | --- |
 | `make validate-pr` | PASS | Ruff, pyright, package, unit, contract, integration, examples, and build all completed successfully. |
 | `make test-summary` | PASS | Refreshed `build/test-summary.md`. |
-| GitHub checks | Pending | To run after PR opens. |
+| GitHub checks | PASS | `CI/checks` passed on PR #2. |
 
 ### Test Suite Summary
 
