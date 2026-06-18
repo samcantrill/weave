@@ -2,7 +2,8 @@
 
 Authoring examples cover how users describe work before it runs: trusted YAML
 composition, recipe expansion, interpolation, artifact-safe source records,
-structured errors, and recursive `_target_` construction.
+structured errors, project-owned config-arg adapters, and recursive `_target_`
+construction.
 
 ## Public Python API Workflows
 
@@ -15,7 +16,7 @@ structured errors, and recursive `_target_` construction.
 | `recipes` | Trusted recipe registration, recipe expansion, overlays, ordinary overrides, interpolation, recipe manifest output, redaction, and fingerprints. |
 | `artifact-safety` | Metadata-only source artifacts, provenance, redaction, resolver facts, artifact-safe fingerprint comparison, raw snapshot defaults, and raw snapshot opt-in. |
 | `target-instantiation` | Explicit construction of trusted `_target_` object graphs with nested targets, `_args_`, `_partial_`, and `_inject_`. |
-| `project-cli-argv` | Project CLI argv shorthand through `compose_config_from_argv`, including scoped overlays, passthrough args, and helper-local warnings. |
+| `project-cli-argv` | Project-owned config-arg adapter flow through `compose_config_from_args` and `ConfigEntrypoint`, including scoped overlays, passthrough args, resolver metadata, selected instantiation, migration diagnostics, and helper-local warnings. |
 
 ## Run
 

@@ -8,3 +8,7 @@ model:
   hidden_size: 64
 trainer:
   epochs: 3
+service:
+  _target_: services:AdapterService
+  name: baseline-service
+  retries: 1

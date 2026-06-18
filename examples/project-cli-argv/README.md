@@ -1,20 +1,22 @@
-# Project CLI Argv Shorthand
+# Project-Owned Config Args
 
-This example shows how a project-owned CLI can pass argv fragments to
-`weave.compose_config_from_argv`.
+This example shows how a project-owned CLI adapter can pass explicit config args
+to `weave` without giving `weave` ownership of project commands or process
+behavior.
 
-`weave` does not provide a first-party CLI executable. The project CLI owns its
-commands and command-specific flags; `weave` only parses config shorthand and
-returns unparsed command arguments to the caller when requested.
+The adapter chooses the base config, keeps command-specific flags as project
+state, and passes only config shorthand to `compose_config_from_args(...)` or
+`ConfigEntrypoint.compose_args(...)`.
 
 It demonstrates:
 
-- `<command> <base-config> ...` argv shape;
-- trailing-slash scoped overlays such as `data/=data_A`;
-- `+scope/=` scoped overlay creation for missing config sections;
-- ordinary dot-path value overrides that apply after scoped overlays;
+- commandless config args such as `data/=data_A` and `trainer.epochs=5`;
+- trailing-slash scoped overlays and `+scope/=` creation for missing sections;
+- command-specific passthrough args returned with `allow_unparsed=True`;
 - helper-local warnings for likely missing scoped-overlay slashes;
-- command-specific passthrough args returned with `allow_unparsed=True`.
+- generic base resolution with plain-data resolver details;
+- selected instantiation of an explicit trusted config path;
+- migration diagnostics for old `<command> <base-config> ...` helper input.
 
 ## Run
 
