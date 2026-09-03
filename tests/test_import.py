@@ -46,6 +46,14 @@ def test_public_config_args_import_surface_is_narrow() -> None:
     assert "compose_config_from_args" in dir(weave)
     assert "inspect_config_args" in dir(weave)
 
+    from weave import structural
+
+    assert weave.resolve_structural is structural.resolve_structural
+    assert api.resolve_structural is structural.resolve_structural
+    assert weave.StructuralResolverDefinition is structural.StructuralResolverDefinition
+    assert weave.StructuralResolutionResult is structural.StructuralResolutionResult
+    assert "resolve_structural" in dir(weave)
+
     detailed_names = {
         "inspect_config_from_argv",
         "ConfigArgsCompositionResult",

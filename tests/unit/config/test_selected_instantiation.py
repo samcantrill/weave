@@ -8,8 +8,12 @@ from typing import cast
 
 import pytest
 
+from tests.support.config_samples import (
+    construction_event_log,
+    reset_instantiate_probe_state,
+)
 from weave import ConfigEntrypoint
-from weave.errors import ConfigValidationError
+from weave.errors import ConfigStructuralResolutionError, ConfigValidationError
 
 
 def _write(path: Path, content: str) -> Path:
@@ -133,3 +137,32 @@ def test_inspect_args_does_not_instantiate_selected_objects(tmp_path: Path) -> N
     assert result.inspection.resolved["service"] == {
         "_target_": "tests.support.config_samples:NON_CALLABLE_TARGET"
     }
+
+
+def test_selected_objects_preflight_as_one_set_before_construction(
+    tmp_path: Path,
+) -> None:
+    reset_instantiate_probe_state()
+    base = _write(
+        tmp_path / "base.yaml",
+        "first:\n"
+        "  _target_: tests.support.config_samples:log_and_return\n"
+        "  tag: must-not-run\n"
+        "  value: payload\n"
+        "later:\n"
+        "  _resolve_:\n"
+        "    resolver: example.runtime\n"
+        "    version: 1\n",
+    )
+    entrypoint = ConfigEntrypoint(
+        base_config_path=base,
+        selected_objects={"first": "first", "later": "later"},
+    )
+
+    with pytest.raises(ConfigStructuralResolutionError) as exc:
+        entrypoint.compose_args()
+
+    assert construction_event_log == []
+    assert exc.value.context is not None
+    assert exc.value.context.code == "unresolved_structural_directive"
+    assert exc.value.context.config_path == "$.later"

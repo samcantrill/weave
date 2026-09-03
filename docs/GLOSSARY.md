@@ -6,6 +6,10 @@
 | Raw config | A config source before composition, interpolation, recipe expansion, or overrides. | Used for source records and raw snapshots. |
 | Composed config | The result returned by `weave.compose_config(...)` or commandless config-arg helpers. | Contains resolved, unresolved, redacted, provenance, manifest, and fingerprint data. |
 | Resolved config | The final plain-data view after interpolation and validation. | Returned to callers; persistence is caller-owned. |
+| Structural directive | One exact `_resolve_` envelope that names a call-scoped resolver, its version, and resolver-owned arguments. | Remains authored data during composition and fingerprinting. |
+| Structural resolution | Explicit post-composition replacement of structural directives with executable plain values. | Runs before target construction, without mutating authored identity. |
+| Structural resolution record | Ordered, schema-versioned, redacted evidence describing one successful resolution. | Contains the declaration and output kind, never the runtime output value. |
+| Structural resolver | A namespaced, exact-version callable supplied to one `resolve_structural(...)` call. | Receives immutable declared arguments; no global registry or root-config access is provided. |
 | Config args | Explicit config shorthand tokens supplied by a project adapter. | Parsed by `compose_config_from_args(...)`, `inspect_config_args(...)`, and `ConfigEntrypoint`. |
 | Project-owned adapter | Downstream code that owns CLI parsing, base selection, and process behavior before calling `weave`. | `weave` does not provide a first-party executable. |
 | Overlay | A config file merged on top of an earlier config. | Recursive merge by default; `_replace_: true` replaces a mapping. |

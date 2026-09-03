@@ -1,0 +1,27 @@
+id: structural-resolution
+title: Structural Resolution
+summary: Resolve runtime-dependent plain values after composition and before explicit target construction.
+capability: authoring
+level: intermediate
+introduced_in: v0
+status: runnable
+validation: smoke
+surface: python_api
+public_surfaces:
+  - python_api
+owner_docs:
+  - examples/README.md
+  - docs/features/config-composition.md
+  - docs/features/example-coverage.md
+owner_stages:
+  - structural-resolution
+validation_path: tests/test_examples.py::test_weave_example_script_runs
+validation_command: make test-examples
+entrypoints:
+  - path: resolve_action.py
+    kind: python
+    description: Compose an action, resolve runtime structure, inspect records, and instantiate targets.
+tags:
+  - structural-resolution
+  - runtime-authority
+  - target-preflight

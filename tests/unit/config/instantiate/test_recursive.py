@@ -4,7 +4,11 @@ from functools import partial
 
 import pytest
 
-from weave.errors import ReservedConfigKeyError, TargetInstantiationError
+from weave.errors import (
+    ConfigStructuralResolutionError,
+    ReservedConfigKeyError,
+    TargetInstantiationError,
+)
 from weave.instantiate import instantiate
 from tests.support.config_samples import (
     AddService,
@@ -99,6 +103,32 @@ def test_instantiate_preserves_bottom_up_order_in_kwargs() -> None:
         }
     )
     assert construction_event_log == ["left", "right", "parent"]
+
+
+def test_instantiate_preflights_all_structural_directives_before_construction() -> None:
+    reset_instantiate_probe_state()
+
+    with pytest.raises(ConfigStructuralResolutionError) as exc:
+        instantiate(
+            {
+                "first": {
+                    "_target_": "tests.support.config_samples:log_and_return",
+                    "tag": "must-not-run",
+                    "value": "payload",
+                },
+                "later": {
+                    "_resolve_": {
+                        "resolver": "example.runtime",
+                        "version": 1,
+                    }
+                },
+            }
+        )
+
+    assert construction_event_log == []
+    assert exc.value.context is not None
+    assert exc.value.context.code == "unresolved_structural_directive"
+    assert exc.value.context.config_path == "$.later"
 
 
 def test_instantiate_preserves_bottom_up_order_in_args() -> None:

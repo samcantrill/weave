@@ -13,6 +13,7 @@ back to this shared validation command.
 | `recipes` | Recipe registration, expansion, overlays, overrides, interpolation, manifest output, redaction, and fingerprints. | Confirms config args still feed existing recipe behavior. |
 | `artifact-safety` | Metadata-only source artifacts, provenance, redaction, resolver facts, fingerprints, and raw snapshot opt-in. | Records artifact-safe defaults preserved by Stage 1. |
 | `target-instantiation` | Explicit construction of trusted `_target_` object graphs with nested targets, `_args_`, `_partial_`, and `_inject_`. | Separates explicit object construction from composition. |
+| `structural-resolution` | Post-composition `_resolve_` replacement with a call-scoped resolver, safe records, and explicit target construction. | Separates authored identity, runtime authority lookup, and execution. |
 | `project-cli-argv` | Project-owned config args, scoped overlays, passthrough args, warnings, resolver metadata, selected instantiation, and migration diagnostics. | Main Stage 1 adapter example. |
 
 ## Deferred Example Topics
@@ -20,4 +21,4 @@ back to this shared validation command.
 The examples intentionally do not cover first-party CLI execution, command
 semantics, global config search, full-config instantiation, workflow execution,
 stores, schedulers, datasets, metrics, or domain-specific pipelines. Those topics
-remain outside the Stage 1 contract.
+remain outside the config authoring contract.
