@@ -1,0 +1,10 @@
+action:
+  output_directory:
+    _resolve_:
+      resolver: example.runtime
+      version: 1
+      kind: workspace
+      workspace_name: primary
+  summary:
+    _target_: builtins:dict
+    status: ready

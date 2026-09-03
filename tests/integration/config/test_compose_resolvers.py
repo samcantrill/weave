@@ -1,12 +1,19 @@
-"""Integration coverage for runtime resolver allow-listing."""
+"""Integration coverage for interpolation and structural resolver boundaries."""
 
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 from omegaconf import OmegaConf
 from omegaconf.resolvers import oc as omegaconf_oc
 
-from weave import compose_config
+from weave import (
+    RecipeCatalog,
+    StructuralResolutionRequest,
+    StructuralResolverDefinition,
+    compose_config,
+    resolve_structural,
+)
 from weave.errors import ConfigIncludeResolutionError, ConfigUnsupportedResolverError
 from weave.redaction import REDACTION_MARKER
 
@@ -144,3 +151,104 @@ def test_public_compose_rejects_include_target_resolver_expression(tmp_path: Pat
     assert context.code == "resolver_dependent"
     assert context.details is not None
     assert context.details["reason"] == "interpolation_token"
+
+
+def test_structural_resolution_runs_after_composition_without_changing_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = tmp_path / "base.yaml"
+    overlay = tmp_path / "overlay.yaml"
+    base.write_text(
+        "root: /base\n"
+        "manifest:\n"
+        "  _resolve_:\n"
+        "    resolver: example.runtime\n"
+        "    version: 1\n"
+        "    path: ${root}/manifest.json\n"
+        "    api_token: ${oc.env:STRUCTURAL_API_TOKEN}\n"
+        "    kind: base\n",
+        encoding="utf-8",
+    )
+    overlay.write_text("root: /overlay\n", encoding="utf-8")
+    monkeypatch.setenv("STRUCTURAL_API_TOKEN", "runtime-token")
+    composed = compose_config(
+        base,
+        overlays=(overlay,),
+        overrides=("manifest._resolve_.kind=dataset_manifest",),
+    )
+    authored_value = deepcopy(composed.resolved)
+    authored_fingerprint = composed.fingerprint
+    authored_manifest = composed.manifest
+    observed_arguments: dict[str, object] = {}
+
+    def resolve_manifest(request: StructuralResolutionRequest) -> str:
+        observed_arguments.update(request.arguments)
+        return str(request.arguments["path"])
+
+    result = resolve_structural(
+        composed.resolved,
+        resolvers={
+            "example.runtime": StructuralResolverDefinition(
+                version=1,
+                handler=resolve_manifest,
+            )
+        },
+    )
+
+    assert observed_arguments == {
+        "path": "/overlay/manifest.json",
+        "api_token": "runtime-token",
+        "kind": "dataset_manifest",
+    }
+    assert result.value["manifest"] == "/overlay/manifest.json"
+    assert result.records[0].to_dict()["arguments"] == {
+        "path": "/overlay/manifest.json",
+        "api_token": REDACTION_MARKER,
+        "kind": "dataset_manifest",
+    }
+    assert composed.resolved == authored_value
+    assert composed.fingerprint == authored_fingerprint
+    assert composed.manifest == authored_manifest
+
+
+def test_structural_resolution_receives_recipe_expansion_output(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "base.yaml"
+    base.write_text(
+        "root: /prepared\n"
+        "pipeline:\n"
+        "  _recipe_: structural-action\n"
+        "  manifest_path: ${root}/manifest.json\n",
+        encoding="utf-8",
+    )
+    catalog = RecipeCatalog()
+
+    def structural_action(manifest_path: str) -> dict[str, object]:
+        return {
+            "manifest_path": {
+                "_resolve_": {
+                    "resolver": "example.runtime",
+                    "version": 1,
+                    "declared_path": manifest_path,
+                }
+            }
+        }
+
+    catalog.register("structural-action", structural_action)
+    composed = compose_config(base, recipe_catalog=catalog)
+    action = composed.resolved["pipeline"]
+
+    result = resolve_structural(
+        action,
+        resolvers={
+            "example.runtime": StructuralResolverDefinition(
+                version=1,
+                handler=lambda request: request.arguments["declared_path"],
+            )
+        },
+    )
+
+    assert result.value == {"manifest_path": "/prepared/manifest.json"}
+    assert composed.recipe_manifest[0]["name"] == "structural-action"

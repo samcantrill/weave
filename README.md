@@ -3,12 +3,19 @@
 `weave` is a typed Python configuration authoring library for trusted projects.
 It composes YAML, overlays, includes, recipes, interpolation, commandless config
 args, and `_target_` object graphs into audited plain data and optional Python
-objects.
+objects. A separate call-scoped structural pass can replace explicit runtime
+directives after composition and before object construction.
 
 The package imports as `weave`:
 
 ```python
-from weave import ConfigEntrypoint, compose_config, compose_config_from_args, instantiate
+from weave import (
+    ConfigEntrypoint,
+    compose_config,
+    compose_config_from_args,
+    instantiate,
+    resolve_structural,
+)
 ```
 
 ## Features
@@ -25,6 +32,8 @@ from weave import ConfigEntrypoint, compose_config, compose_config_from_args, in
   `compose_config_from_args(...)`; `weave` does not own project commands.
 - Optional selected-object instantiation for explicitly selected trusted config
   paths.
+- Call-scoped `_resolve_` replacement with immutable requests, exact resolver
+  versions, safe ordered records, and no global resolver registry.
 - Structured config errors with plain-data context payloads.
 
 `weave` treats authored configs as trusted project code. It is not a workflow

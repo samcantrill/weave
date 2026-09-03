@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import re
 
 from .instantiate import instantiate
+from .structural import _ensure_no_unresolved_structural_directives
 
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -27,6 +28,7 @@ def check_config_targets(
 ) -> TargetCheckResult:
     """Construct generic ``_target_`` blocks and discard the objects."""
 
+    _ensure_no_unresolved_structural_directives(value)
     skipped = frozenset(skip_paths)
     target_paths: list[str] = []
     construction_roots: list[tuple[str, Mapping[str, object]]] = []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from weave import check_config_targets
+from weave.errors import ConfigStructuralResolutionError
 
 
 pytestmark = pytest.mark.unit
@@ -59,3 +60,28 @@ def test_check_config_targets_skips_owner_paths_but_checks_nested_targets() -> N
     assert result.target_count == 1
     assert result.checked_paths == ("$.factory.child",)
     assert target_events == ["child"]
+
+
+def test_check_config_targets_preflights_whole_input_before_construction() -> None:
+    target_events.clear()
+
+    with pytest.raises(ConfigStructuralResolutionError) as exc:
+        check_config_targets(
+            {
+                "first": {
+                    "_target_": TARGET_PATH,
+                    "tag": "must-not-run",
+                },
+                "later": {
+                    "_resolve_": {
+                        "resolver": "example.runtime",
+                        "version": 1,
+                    }
+                },
+            }
+        )
+
+    assert target_events == []
+    assert exc.value.context is not None
+    assert exc.value.context.code == "unresolved_structural_directive"
+    assert exc.value.context.config_path == "$.later"

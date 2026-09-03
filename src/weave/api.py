@@ -39,6 +39,15 @@ from .fingerprints import (
 )
 from .provenance import ConfigProvenance
 from .recipes import RecipeCatalog, RecipeImplementation
+from .structural import (
+    StructuralResolutionRecord,
+    StructuralResolutionRequest,
+    StructuralResolutionResult,
+    StructuralResolverDefinition,
+    StructuralResolverRejected,
+    _ensure_no_unresolved_structural_directives,
+    resolve_structural,
+)
 
 
 __default_recipe_catalog: RecipeCatalog | None = None
@@ -1135,11 +1144,21 @@ def _instantiate_selected_objects(
     selected_objects: tuple[dict[str, PlainData], ...],
     runtime: Mapping[str, object] | None,
 ) -> dict[str, object]:
-    objects: dict[str, object] = {}
+    selected_values: list[tuple[str, str, PlainData]] = []
     for item in selected_objects:
         key = cast(str, item["key"])
         dot_path = cast(str, item["path"])
         value = _lookup_selected_object_value(resolved, key=key, dot_path=dot_path)
+        selected_values.append((key, dot_path, value))
+
+    for _key, dot_path, value in selected_values:
+        _ensure_no_unresolved_structural_directives(
+            value,
+            path=_config_path_for_dot_path(dot_path),
+        )
+
+    objects: dict[str, object] = {}
+    for key, _dot_path, value in selected_values:
         objects[key] = instantiate(value, runtime=runtime)
     return objects
 
@@ -1440,9 +1459,15 @@ __all__ = [
     "RawSourceSnapshotBundle",
     "RawSourceSnapshotPayload",
     "RawSourceSnapshotReference",
+    "StructuralResolutionRecord",
+    "StructuralResolutionRequest",
+    "StructuralResolutionResult",
+    "StructuralResolverDefinition",
+    "StructuralResolverRejected",
     "ARTIFACT_SAFE_FINGERPRINT_LABEL",
     "ARTIFACT_SAFE_FINGERPRINT_POLICY",
     "ARTIFACT_SAFE_RUNTIME_REPLAY",
     "instantiate",
     "register_recipe",
+    "resolve_structural",
 ]
