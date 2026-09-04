@@ -6,6 +6,7 @@ import pytest
 
 from weave.errors import (
     ConfigErrorContext,
+    ConfigStructuralResolutionError,
     ConfigValidationError,
     ConfigUnsupportedResolverError,
     ConfigIncludeExpansionError,
@@ -234,6 +235,35 @@ def test_existing_config_error_names_accept_structured_context() -> None:
         assert payload["message"] == "structured failure"
         assert payload["context"]["code"] == "structured_context"
         assert ConfigErrorContext.from_dict(payload["context"]) == context
+
+
+def test_structural_resolution_error_serializes_safe_context() -> None:
+    error = ConfigStructuralResolutionError(
+        "Structural resolver failed",
+        context=ConfigErrorContext(
+            code="structural_resolver_failed",
+            source_kind="structural_resolution",
+            source_order=0,
+            source_path="<structural-resolution>",
+            config_path="$.manifest_path",
+            directive="_resolve_",
+            remediation="Correct the resolver arguments.",
+            details={
+                "stage": "structural_resolution",
+                "resolver": "example.runtime",
+                "resolver_version": 1,
+                "exception_type": "RuntimeError",
+            },
+        ),
+    )
+
+    payload = error.to_dict()
+
+    assert payload["message"] == "Structural resolver failed"
+    assert payload["context"]["code"] == "structural_resolver_failed"
+    assert payload["context"]["source_kind"] == "structural_resolution"
+    assert payload["context"]["directive"] == "_resolve_"
+    assert ConfigErrorContext.from_dict(payload["context"]) == error.context
 
 
 

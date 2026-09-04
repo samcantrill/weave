@@ -31,8 +31,16 @@ if TYPE_CHECKING:
         inspect_config_composition,
         instantiate,
         register_recipe,
+        resolve_structural,
     )
     from .recipes import Recipe, RecipeCatalog
+    from .structural import (
+        StructuralResolutionRecord,
+        StructuralResolutionRequest,
+        StructuralResolutionResult,
+        StructuralResolverDefinition,
+        StructuralResolverRejected,
+    )
     from .target_checks import TargetCheckResult, check_config_targets
 
 
@@ -66,6 +74,12 @@ _OPTIONAL_SYMBOLS: Final = frozenset(
         "instantiate",
         "check_config_targets",
         "TargetCheckResult",
+        "StructuralResolutionRecord",
+        "StructuralResolutionRequest",
+        "StructuralResolutionResult",
+        "StructuralResolverDefinition",
+        "StructuralResolverRejected",
+        "resolve_structural",
     }
 )
 
@@ -113,6 +127,17 @@ def _resolve_optional_symbol(name: str) -> object:
             from . import recipes
 
             return getattr(recipes, name)
+        case (
+            "StructuralResolutionRecord"
+            | "StructuralResolutionRequest"
+            | "StructuralResolutionResult"
+            | "StructuralResolverDefinition"
+            | "StructuralResolverRejected"
+            | "resolve_structural"
+        ):
+            from . import structural
+
+            return getattr(structural, name)
     raise AssertionError(f"unexpected config symbol name: {name!r}")
 
 
@@ -167,5 +192,11 @@ __all__ = [
     "instantiate",
     "check_config_targets",
     "TargetCheckResult",
+    "StructuralResolutionRecord",
+    "StructuralResolutionRequest",
+    "StructuralResolutionResult",
+    "StructuralResolverDefinition",
+    "StructuralResolverRejected",
+    "resolve_structural",
     "register_recipe",
 ]

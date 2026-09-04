@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -188,8 +190,41 @@ class ConfigUnsupportedResolverError(_ConfigError, NotImplementedError):
     """Error for unsupported OmegaConf resolver execution."""
 
 
+class ConfigStructuralResolutionError(_ConfigError):
+    """Error while resolving call-scoped ``_resolve_`` directives."""
+
+
 class ConfigValidationError(_ConfigError):
     """Error while validating config ownership and required fields."""
+
+
+class StructuralResolverRejected(Exception):
+    """A resolver's explicit, artifact-safe rejection of its request."""
+
+    def __init__(
+        self,
+        code: str,
+        *,
+        details: Mapping[str, object] | None = None,
+    ) -> None:
+        if not isinstance(code, str) or re.fullmatch(r"[a-z][a-z0-9_]*", code) is None:
+            raise ConfigValidationError("StructuralResolverRejected.code must be a lower-case identifier")
+
+        from .plain import ensure_plain_data
+
+        try:
+            normalized = ensure_plain_data(
+                details or {},
+                path="StructuralResolverRejected.details",
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise ConfigValidationError("StructuralResolverRejected.details must be a plain-data mapping") from exc
+        if not isinstance(normalized, dict):
+            raise ConfigValidationError("StructuralResolverRejected.details must be a mapping")
+
+        super().__init__(code)
+        self.code = code
+        self.details = normalized
 
 
 class ConfigRedactionError(_ConfigError):
@@ -283,7 +318,9 @@ __all__ = [
     "OverrideParseError",
     "OverrideApplyError",
     "ConfigInterpolationError",
+    "ConfigStructuralResolutionError",
     "ConfigValidationError",
+    "StructuralResolverRejected",
     "ConfigRedactionError",
     "ConfigProvenanceError",
     "UnsupportedRecipeError",

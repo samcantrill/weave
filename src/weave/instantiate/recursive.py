@@ -12,6 +12,7 @@ from ..errors import (
     TargetInstantiationError,
 )
 from ..plain import PlainData, to_plain_data
+from ..structural import _ensure_no_unresolved_structural_directives
 
 from . import injection
 from .targets import import_target
@@ -34,6 +35,7 @@ def instantiate(value: object, *, runtime: Mapping[str, object] | None = None) -
                 actual=type(runtime).__name__,
             ),
         )
+    _ensure_no_unresolved_structural_directives(value)
     return _instantiate(value=value, runtime=runtime, path="$")
 
 
