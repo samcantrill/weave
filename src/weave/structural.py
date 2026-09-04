@@ -276,6 +276,8 @@ def resolve_structural(
         )
         definition = definitions[directive.resolver]
 
+        raw_output: object = None
+        resolution_error: ConfigStructuralResolutionError | None = None
         try:
             raw_output = definition.handler(request)
         except StructuralResolverRejected as exc:
@@ -284,7 +286,7 @@ def resolve_structural(
                 rejection_details = REDACTION_MARKER
             else:
                 rejection_details = redact_secrets(exc.details)
-            raise _structural_error(
+            resolution_error = _structural_error(
                 "Structural resolver rejected its request",
                 code="structural_resolver_rejected",
                 config_path=format_config_path(directive.path),
@@ -295,9 +297,9 @@ def resolve_structural(
                     "rejection_details": rejection_details,
                     "completed_resolution_count": len(records),
                 },
-            ) from None
+            )
         except Exception as exc:  # noqa: BLE001
-            raise _structural_error(
+            resolution_error = _structural_error(
                 "Structural resolver failed",
                 code="structural_resolver_failed",
                 config_path=format_config_path(directive.path),
@@ -307,7 +309,14 @@ def resolve_structural(
                     "exception_type": type(exc).__name__,
                     "completed_resolution_count": len(records),
                 },
-            ) from None
+            )
+
+        # Raise only after leaving the resolver's exception handler. ``from
+        # None`` suppresses display but still retains the original exception in
+        # ``__context__``, where telemetry could recover its raw message or
+        # resolver-owned details.
+        if resolution_error is not None:
+            raise resolution_error
 
         output = _normalize_plain_value(
             raw_output,

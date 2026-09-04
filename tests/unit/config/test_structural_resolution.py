@@ -313,6 +313,7 @@ def test_generic_handler_failure_does_not_serialize_exception_text() -> None:
     assert "raw-runtime-secret" not in payload
     assert "RuntimeError" in payload
     assert exc.value.__cause__ is None
+    assert exc.value.__context__ is None
 
 
 def test_explicit_rejection_details_and_records_use_secret_redaction() -> None:
@@ -331,6 +332,8 @@ def test_explicit_rejection_details_and_records_use_secret_redaction() -> None:
         "api_token": REDACTION_MARKER,
         "authority": "dataset",
     }
+    assert exc.value.__cause__ is None
+    assert exc.value.__context__ is None
 
     result = resolve_structural(
         _directive(api_token="raw-token", label="safe"),
