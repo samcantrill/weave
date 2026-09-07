@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from weave import RecipeCatalog, compose_config, inspect_config_composition
 from weave.redaction import REDACTION_MARKER
 from weave.fingerprints import ARTIFACT_SAFE_FINGERPRINT_LABEL, ARTIFACT_SAFE_FINGERPRINT_POLICY
@@ -358,9 +360,11 @@ def test_public_compose_records_explicit_relative_include_escape_and_local_custo
     assert include_artifact.metadata["explicit_escape"] is True
 
 
+@pytest.mark.parametrize("explicit", [False, True])
 def test_public_compose_builds_artifacts_before_runtime_interpolation_and_keeps_digests_env_free(
     tmp_path: Path,
     monkeypatch,
+    explicit: bool,
 ) -> None:
     base = tmp_path / "base.yaml"
     base.write_text(
@@ -373,9 +377,13 @@ def test_public_compose_builds_artifacts_before_runtime_interpolation_and_keeps_
     )
 
     monkeypatch.setenv("PHASE4_RUNTIME_ROOT", "/runtime/one")
-    first = inspect_config_composition(base)
+    first = inspect_config_composition(
+        base, environment={"PHASE4_RUNTIME_ROOT": "/runtime/one", "UNUSED": "private-unused"} if explicit else None,
+    )
     monkeypatch.setenv("PHASE4_RUNTIME_ROOT", "/runtime/two")
-    second = inspect_config_composition(base)
+    second = inspect_config_composition(
+        base, environment={"PHASE4_RUNTIME_ROOT": "/runtime/two"} if explicit else None,
+    )
 
     stage_names = [stage.name for stage in first.stages]
     assert stage_names.index("artifact_placeholders") < stage_names.index("runtime_interpolation")
@@ -401,6 +409,8 @@ def test_public_compose_builds_artifacts_before_runtime_interpolation_and_keeps_
         },
         sort_keys=True,
     )
+    assert "private-unused" not in serialized
+    assert "UNUSED" not in serialized
     assert "/runtime/one" not in serialized
     assert "/runtime/two" not in serialized
 

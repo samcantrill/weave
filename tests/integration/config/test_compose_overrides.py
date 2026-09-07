@@ -304,3 +304,14 @@ def test_public_compose_rejects_brand_new_include_override_with_resolver_express
     assert context.code == "resolver_dependent"
     assert context.details is not None
     assert context.details["reason"] == "interpolation_token"
+
+
+def test_environment_resolution_follows_overlay_and_override_order(tmp_path: Path) -> None:
+    base = tmp_path / "base.yaml"
+    overlay = tmp_path / "overlay.yaml"
+    base.write_text("value: ${oc.env:MISSING_BASE}\n", encoding="utf-8")
+    overlay.write_text("value: ${oc.env:MISSING_OVERLAY}\n", encoding="utf-8")
+    result = compose_config(
+        base, overlays=(overlay,), overrides=("value=${oc.env:VALUE}",), environment={"VALUE": "final"},
+    )
+    assert result.resolved["value"] == "final"

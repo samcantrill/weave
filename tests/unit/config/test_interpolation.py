@@ -171,3 +171,33 @@ def test_reject_other_non_allowlisted_omega_conf_builtin_resolvers(resolver_toke
     assert context is not None
     assert context.code == "unsupported_resolver"
     assert context.actual == resolver_token.split(":", 1)[0]
+
+
+@pytest.mark.parametrize("value", ["", "0", "false", "null", "${custom:payload}", r"\${oc.env:OTHER}"])
+def test_explicit_environment_values_remain_literal_strings(value: str) -> None:
+    resolved = resolve_interpolation(
+        {"value": "${oc.env:VALUE}", "copy": "${value}", "items": ["prefix/${oc.env:VALUE}"]},
+        environment={"VALUE": value},
+    )
+    assert resolved == {"value": value, "copy": value, "items": [f"prefix/{value}"]}
+
+
+def test_explicit_empty_environment_uses_defaults_without_ambient_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VALUE", "ambient")
+    resolved = resolve_interpolation(
+        {"text": "${oc.env:VALUE,fallback}", "number": "${oc.env:VALUE,12}", "null": "${oc.env:VALUE,null}"},
+        environment={},
+    )
+    assert resolved == {"text": "fallback", "number": "12", "null": None}
+    with pytest.raises(ConfigInterpolationError):
+        resolve_interpolation({"value": "${oc.env:VALUE}"}, environment={})
+
+
+@pytest.mark.parametrize("environment", [{"TOKEN": 3}, {4: "secret"}, [("TOKEN", "secret")]])
+def test_reject_invalid_environment_without_disclosing_values(environment: object) -> None:
+    from weave.errors import ConfigValidationError
+
+    with pytest.raises(ConfigValidationError) as exc:
+        resolve_interpolation({"value": "literal"}, environment=environment)  # type: ignore[arg-type]
+    assert "secret" not in str(exc.value)
+    assert "TOKEN" not in str(exc.value)

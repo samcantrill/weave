@@ -51,6 +51,50 @@ from `weave.api`. Retained argv helper names are compatibility helpers: prefer
 `compose_config_from_args(...)`, `inspect_config_args(...)`, or
 `ConfigEntrypoint` for new adapters.
 
+## Environment Values
+
+All composition and inspection helpers accept the keyword-only
+`environment: Mapping[str, str] | None = None`. `ConfigEntrypoint.compose_args`
+and `inspect_args` take it per call, so one entrypoint can serve different
+configurations concurrently.
+
+- Omit it (or pass `None`) to snapshot `os.environ` before loading configuration.
+- Pass a mapping to use only its values. `{}` has no ambient fallback.
+- Values and keys must be strings. `oc.env` keeps values as strings, including
+  `"0"`, `"false"`, and an empty string. A missing key uses its authored default,
+  if present; `${oc.env:NAME,null}` can produce `None`. Without a default it fails.
+
+For a config containing `root: ${oc.env:ROOT}`, concurrent callers can use:
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+from weave import compose_config
+
+
+def load(root):
+    return compose_config("config.yaml", environment={"ROOT": root}).resolved
+
+
+with ThreadPoolExecutor(max_workers=2) as pool:
+    first, second = list(pool.map(load, ["/machine/a", "/machine/b"]))
+```
+
+Weave copies the input before config loading or recipe execution; entrypoints
+also capture it before invoking a base resolver. Later changes to the caller's
+mapping or shell environment do not change that composition. Weave never
+modifies `os.environ` or installs global OmegaConf resolvers. Resolver-like
+strings supplied through the environment remain literal data.
+
+This option affects runtime `oc.env` resolution. Include targets still cannot
+use resolvers, and other resolver names remain unsupported. Environment values
+are not added to provenance, source snapshots, manifests, or artifact-safe
+fingerprints; those continue to describe authored configuration. Consequently,
+a changed resolved value need not change that fingerprint. The resolved view
+contains usable runtime values; apply existing redaction rules before sharing it.
+
+Projects own explicit `.env` parsing and launch environments. This API neither
+reads `.env` files nor configures child processes.
+
 ## Adapter Boundary
 
 Projects own their CLI parser, commands, and command-specific flags. The project
