@@ -6,6 +6,8 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
+from types import MappingProxyType
 from typing import Any, cast
 
 from omegaconf import OmegaConf
@@ -16,7 +18,7 @@ from omegaconf.grammar_visitor import GrammarVisitor
 from .plain import PlainData, ensure_plain_data
 from .plain import to_plain_data
 
-from .errors import ConfigErrorContext, ConfigInterpolationError, ConfigUnsupportedResolverError
+from .errors import ConfigErrorContext, ConfigInterpolationError, ConfigUnsupportedResolverError, ConfigValidationError
 from .redaction import REDACTION_MARKER, is_secret_path
 from .source_maps import ConfigPath, ValueAuthorship, format_config_path
 
@@ -33,6 +35,15 @@ class ResolverExpressionRecord:
     expression: str
 
 
+def _snapshot_environment(environment: Mapping[str, str] | None) -> Mapping[str, str]:
+    if environment is not None and not isinstance(environment, Mapping):
+        raise ConfigValidationError("environment must be a mapping of strings to strings or None")
+    snapshot = dict(os.environ if environment is None else environment)
+    if any(not isinstance(key, str) or not isinstance(value, str) for key, value in snapshot.items()):
+        raise ConfigValidationError("environment keys and values must be strings")
+    return MappingProxyType(snapshot)
+
+
 def resolve_interpolation(
     mapping: Mapping[str, Any],
     *,
@@ -41,7 +52,10 @@ def resolve_interpolation(
     source_order: int = 0,
     source_path: str = "$",
     value_authorship: Mapping[str, ValueAuthorship] | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> dict[str, PlainData]:
+    """Resolve using a snapshot of environment; None reads ambient values, {} does not."""
+    environment = _snapshot_environment(environment)
     plain_config, resolver_records = scan_resolver_expressions(mapping, path=path)
     _reject_unsupported_resolvers(
         resolver_records,
@@ -55,6 +69,7 @@ def resolve_interpolation(
             plain_config,
             root_path=path,
             resolver_records=resolver_records,
+            environment=environment,
         )
         config = OmegaConf.create(dict(runtime_config))
     except OmegaConfBaseException as exc:
@@ -213,6 +228,7 @@ def _resolve_allowed_runtime_resolvers(
     *,
     root_path: str,
     resolver_records: Sequence[ResolverExpressionRecord],
+    environment: Mapping[str, str],
 ) -> dict[str, PlainData]:
     resolver_paths = frozenset(
         record.config_path for record in resolver_records if record.resolver in _ALLOWED_RUNTIME_RESOLVERS
@@ -225,6 +241,7 @@ def _resolve_allowed_runtime_resolvers(
         root_path=root_path,
         config_path=(),
         resolver_paths=resolver_paths,
+        environment=environment,
     )
     if not isinstance(resolved, dict):
         raise ConfigInterpolationError(f"Runtime resolver preparation produced non-mapping root at {root_path}")
@@ -237,11 +254,12 @@ def _resolve_runtime_resolver_values(
     root_path: str,
     config_path: ConfigPath,
     resolver_paths: frozenset[str],
+    environment: Mapping[str, str],
 ) -> PlainData:
     if isinstance(value, str):
         if _format_scan_path(root_path, config_path) not in resolver_paths:
             return value
-        return _resolve_runtime_string(value, path=_format_scan_path(root_path, config_path))
+        return _resolve_runtime_string(value, path=_format_scan_path(root_path, config_path), environment=environment)
 
     if isinstance(value, dict):
         return {
@@ -250,6 +268,7 @@ def _resolve_runtime_resolver_values(
                 root_path=root_path,
                 config_path=config_path + (key,),
                 resolver_paths=resolver_paths,
+                environment=environment,
             )
             for key, child in value.items()
         }
@@ -261,6 +280,7 @@ def _resolve_runtime_resolver_values(
                 root_path=root_path,
                 config_path=config_path + (index,),
                 resolver_paths=resolver_paths,
+                environment=environment,
             )
             for index, child in enumerate(value)
         ]
@@ -268,10 +288,10 @@ def _resolve_runtime_resolver_values(
     return value
 
 
-def _resolve_runtime_string(value: str, *, path: str) -> PlainData:
+def _resolve_runtime_string(value: str, *, path: str, environment: Mapping[str, str]) -> PlainData:
     visitor = GrammarVisitor(
         node_interpolation_callback=cast(Any, _preserve_node_interpolation),
-        resolver_interpolation_callback=_resolve_runtime_resolver,
+        resolver_interpolation_callback=partial(_resolve_runtime_resolver, environment=environment),
         memo=set(),
     )
     try:
@@ -297,22 +317,25 @@ def _resolve_runtime_resolver(
     name: str,
     args: tuple[Any, ...],
     args_str: tuple[str, ...],
+    environment: Mapping[str, str],
 ) -> str | None:
     _ = args_str
     if name != "oc.env":
         raise ConfigInterpolationError(f"Unsupported runtime resolver {name!r}")
 
-    value = _weave_oc_env(*args)
+    value = _weave_oc_env(*args, environment=environment)
     if isinstance(value, str):
         return _escape_interpolation_openings(value)
     return value
 
 
-def _weave_oc_env(key: object, default: object = _ENV_DEFAULT_MISSING) -> str | None:
+def _weave_oc_env(
+    key: object, default: object = _ENV_DEFAULT_MISSING, *, environment: Mapping[str, str]
+) -> str | None:
     if not isinstance(key, str):
         raise TypeError(f"str expected, not {type(key).__name__}")
     try:
-        return os.environ[key]
+        return environment[key]
     except KeyError:
         if default is not _ENV_DEFAULT_MISSING:
             return str(default) if default is not None else None

@@ -523,8 +523,11 @@ class ConfigEntrypoint:
                 details={"actual_type": type(self.base_resolver).__name__},
             )
 
-    def compose_args(self, config_args: Sequence[str] = ()) -> ConfigArgsCompositionResult:
-        inspection_result = self.inspect_args(config_args)
+    def compose_args(
+        self, config_args: Sequence[str] = (), *, environment: Mapping[str, str] | None = None,
+    ) -> ConfigArgsCompositionResult:
+        """Compose with a per-call environment; see compose_config for its semantics."""
+        inspection_result = self.inspect_args(config_args, environment=environment)
         composed_config = inspection_result.inspection.to_composed_config()
         selected_objects = self._selected_object_specs
         objects = _instantiate_selected_objects(
@@ -545,7 +548,13 @@ class ConfigEntrypoint:
             selected_objects=selected_objects,
         )
 
-    def inspect_args(self, config_args: Sequence[str] = ()) -> ConfigArgsInspectionResult:
+    def inspect_args(
+        self, config_args: Sequence[str] = (), *, environment: Mapping[str, str] | None = None,
+    ) -> ConfigArgsInspectionResult:
+        """Snapshot environment before invoking the base resolver and composing."""
+        from .interpolation import _snapshot_environment
+
+        environment = _snapshot_environment(environment)
         base_config_path, base_details = self._resolve_base()
         result = inspect_config_args(
             base_config_path,
@@ -553,6 +562,7 @@ class ConfigEntrypoint:
             allow_unparsed=self.allow_unparsed,
             recipe_catalog=self.recipe_catalog,
             include_raw_source_snapshots=self.include_raw_source_snapshots,
+            environment=environment,
         )
         return ConfigArgsInspectionResult(
             base_config_path=result.base_config_path,
@@ -589,13 +599,16 @@ def compose_config_from_args(
     allow_unparsed: bool = False,
     recipe_catalog: RecipeCatalog | None = None,
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ConfigArgsCompositionResult:
+    """Compose using a per-call environment; see compose_config for its semantics."""
     inspection_result = inspect_config_args(
         base_config_path=base_config_path,
         config_args=config_args,
         allow_unparsed=allow_unparsed,
         recipe_catalog=recipe_catalog,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     )
     return ConfigArgsCompositionResult(
         base_config_path=inspection_result.base_config_path,
@@ -616,7 +629,9 @@ def inspect_config_args(
     allow_unparsed: bool = False,
     recipe_catalog: RecipeCatalog | None = None,
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ConfigArgsInspectionResult:
+    """Inspect composition with the same environment semantics as compose_config."""
     from .compose import _inspect_config_composition_with_argv_scoped_overlays
 
     if recipe_catalog is not None and not isinstance(recipe_catalog, RecipeCatalog):
@@ -636,6 +651,7 @@ def inspect_config_args(
         argv_scoped_overlays=parsed.scoped_overlays,
         overrides=parsed.override_strings,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     )
     warnings = _argv_warnings(parsed=parsed, recipe_catalog=catalog)
     return ConfigArgsInspectionResult(
@@ -656,13 +672,16 @@ def compose_config_from_argv(
     allow_unparsed: bool = False,
     recipe_catalog: RecipeCatalog | None = None,
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ConfigArgsCompositionResult:
+    """Compose using a per-call environment; see compose_config for its semantics."""
     inspection_result = inspect_config_from_argv(
         argv=argv,
         command_choices=command_choices,
         allow_unparsed=allow_unparsed,
         recipe_catalog=recipe_catalog,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     )
     return ConfigArgsCompositionResult(
         base_config_path=inspection_result.base_config_path,
@@ -683,7 +702,9 @@ def inspect_config_from_argv(
     allow_unparsed: bool = False,
     recipe_catalog: RecipeCatalog | None = None,
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ConfigArgsInspectionResult:
+    """Inspect composition with the same environment semantics as compose_config."""
     tokens = _normalize_retained_argv(argv)
     choices = _normalize_retained_command_choices(command_choices)
     if _looks_like_command_first_argv(tokens, command_choices=choices):
@@ -723,6 +744,7 @@ def inspect_config_from_argv(
         allow_unparsed=allow_unparsed,
         recipe_catalog=recipe_catalog,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     )
 
 
@@ -1335,7 +1357,16 @@ def compose_config(
     recipe_catalog: RecipeCatalog | None = None,
     *,
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ComposedConfig:
+    """Compose trusted configuration using a snapshot of runtime environment values.
+
+    ``environment=None`` snapshots os.environ before loading configuration.
+    An explicit mapping is authoritative: missing keys never fall back to the
+    process environment, including when the mapping is empty. oc.env preserves
+    string values (and authored defaults); resolver-like values remain literal.
+    The environment is never installed into process state or artifact metadata.
+    """
     from .compose import inspect_config_composition
 
     if overlays is None:
@@ -1353,6 +1384,7 @@ def compose_config(
         overrides=tuple(overrides),
         recipe_catalog=recipe_catalog if recipe_catalog is not None else _get_default_recipe_catalog(),
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     ).to_composed_config()
 
 
@@ -1363,7 +1395,9 @@ def inspect_config_composition(
     recipe_catalog: RecipeCatalog | None = None,
     *,
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ConfigCompositionInspection:
+    """Inspect composition with the same environment semantics as compose_config."""
     from .compose import inspect_config_composition as _inspect_config_composition
 
     if overlays is None:
@@ -1381,6 +1415,7 @@ def inspect_config_composition(
         overrides=tuple(overrides),
         recipe_catalog=recipe_catalog if recipe_catalog is not None else _get_default_recipe_catalog(),
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     )
 
 
@@ -1391,7 +1426,9 @@ def compose_config_with_catalog(
     overlays: list[str | Path] | tuple[str | Path, ...] = (),
     overrides: list[str] | tuple[str, ...] = (),
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ComposedConfig:
+    """Compose using a per-call environment; see compose_config for its semantics."""
     from .compose import inspect_config_composition
 
     if not isinstance(recipe_catalog, RecipeCatalog):
@@ -1409,6 +1446,7 @@ def compose_config_with_catalog(
         overrides=tuple(overrides),
         recipe_catalog=recipe_catalog,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     ).to_composed_config()
 
 

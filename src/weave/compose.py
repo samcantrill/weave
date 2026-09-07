@@ -23,7 +23,7 @@ from .includes import (
     expand_config_includes,
     resolve_include_target,
 )
-from .interpolation import resolve_interpolation, scan_resolver_expressions
+from .interpolation import _snapshot_environment, resolve_interpolation, scan_resolver_expressions
 from .load import load_config
 from .load import load_config_with_source_text
 from .merge import merge_configs
@@ -96,6 +96,7 @@ def inspect_config_composition(
     overlays: Sequence[str | Path] = (),
     overrides: Sequence[str] = (),
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ConfigCompositionInspection:
     return _inspect_config_composition(
         config_path=config_path,
@@ -103,6 +104,7 @@ def inspect_config_composition(
         overlays=overlays,
         overrides=overrides,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
         argv_scoped_overlays=(),
     )
 
@@ -115,6 +117,7 @@ def _inspect_config_composition_with_argv_scoped_overlays(
     overlays: Sequence[str | Path] = (),
     overrides: Sequence[str] = (),
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ConfigCompositionInspection:
     """Private argv-path composition helper used until the public Phase 3 API exists."""
 
@@ -124,6 +127,7 @@ def _inspect_config_composition_with_argv_scoped_overlays(
         overlays=overlays,
         overrides=overrides,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
         argv_scoped_overlays=tuple(argv_scoped_overlays),
         emit_argv_scoped_overlay_stage=True,
     )
@@ -136,9 +140,11 @@ def _inspect_config_composition(
     overlays: Sequence[str | Path] = (),
     overrides: Sequence[str] = (),
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
     argv_scoped_overlays: Sequence[ArgvScopedOverlay] = (),
     emit_argv_scoped_overlay_stage: bool = False,
 ) -> ConfigCompositionInspection:
+    environment = _snapshot_environment(environment)
     if not isinstance(recipe_catalog, RecipeCatalog):
         raise ConfigValidationError("recipe_catalog must be a RecipeCatalog")
 
@@ -472,6 +478,7 @@ def _inspect_config_composition(
     )
     resolved = resolve_interpolation(
         expanded_artifact_safe,
+        environment=environment,
         path="$",
         source_kind=base_source.kind,
         source_order=base_source.order,
@@ -683,6 +690,7 @@ def compose_config(
     overlays: Sequence[str | Path] = (),
     overrides: Sequence[str] = (),
     include_raw_source_snapshots: bool = False,
+    environment: Mapping[str, str] | None = None,
 ) -> ComposedConfig:
     return inspect_config_composition(
         config_path=config_path,
@@ -690,6 +698,7 @@ def compose_config(
         overlays=overlays,
         overrides=overrides,
         include_raw_source_snapshots=include_raw_source_snapshots,
+        environment=environment,
     ).to_composed_config()
 
 
