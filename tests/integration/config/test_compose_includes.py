@@ -95,6 +95,44 @@ def test_public_compose_includes_nested_include_relative_to_including_file(tmp_p
     }
 
 
+def test_base_root_include_survives_ordered_overlays(tmp_path: Path) -> None:
+    base = tmp_path / "base.yaml"
+    first = tmp_path / "first.yaml"
+    second = tmp_path / "second.yaml"
+    (tmp_path / "defaults.yaml").write_text(
+        "component:\n  _include_: ./component.yaml\n", encoding="utf-8"
+    )
+    (tmp_path / "component.yaml").write_text("width: 72\nheight: 72\n", encoding="utf-8")
+    base.write_text("_include_: ./defaults.yaml\nname: base\n", encoding="utf-8")
+    first.write_text("component:\n  width: 128\nextra: 1\n", encoding="utf-8")
+    second.write_text("extra: 2\n", encoding="utf-8")
+
+    composed = compose_config(base, overlays=(first, second))
+
+    assert composed.resolved == {
+        "component": {"width": 128, "height": 72}, "name": "base", "extra": 2
+    }
+    assert [source.path for source in composed.source_artifacts if source.kind == "overlay"] == [
+        str(first), str(second)
+    ]
+
+
+def test_overlay_root_include_still_requires_explicit_replacement(tmp_path: Path) -> None:
+    base = tmp_path / "base.yaml"
+    overlay = tmp_path / "overlay.yaml"
+    (tmp_path / "defaults.yaml").write_text("value: included\n", encoding="utf-8")
+    base.write_text("value: base\n", encoding="utf-8")
+    overlay.write_text("_include_: ./defaults.yaml\n", encoding="utf-8")
+
+    with pytest.raises(ConfigIncludeExpansionError) as exc:
+        compose_config(base, overlays=(overlay,))
+    assert exc.value.context is not None
+    assert exc.value.context.code == "missing_required_replace_for_include"
+
+    overlay.write_text("_replace_: true\n_include_: ./defaults.yaml\n", encoding="utf-8")
+    assert compose_config(base, overlays=(overlay,)).resolved == {"value": "included"}
+
+
 def test_public_compose_nested_include_resolution_error_records_active_stack(tmp_path: Path) -> None:
     base = tmp_path / "base.yaml"
     include_dir = tmp_path / "include"
