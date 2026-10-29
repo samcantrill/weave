@@ -27,6 +27,11 @@ auditable records.
 - Call-scoped `_resolve_` replacement after composition and before target
   construction.
 
+A base-authored `_include_`, including one at the document root, remains valid
+when ordered overlays customize or add fields. Those overlays need no
+`_replace_` marker merely to retain that include. An overlay introducing an
+include over an existing mapping still requires same-site `_replace_: true`.
+
 ## Public API
 
 ```python

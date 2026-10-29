@@ -370,6 +370,9 @@ def _expand_including_mapping(
             if (
                 container_path in mapping_sites
                 and container_path not in replacement_sites
+                # A base-authored include has no earlier mapping to replace.
+                # Unrelated overlays still mark the root as a merged mapping.
+                and include_source.kind != "base"
                 and container_source.order <= include_source.order
             ):
                 raise _include_expansion_error(
