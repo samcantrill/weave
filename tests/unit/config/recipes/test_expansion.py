@@ -225,3 +225,35 @@ def test_expand_handles_final_interpolation_for_output() -> None:
     assert pipeline["value"] == "one"
     assert nested["value"] == "nested:one-child"
     assert pipeline["resolved"] == "one-resolved"
+
+
+@pytest.mark.parametrize("argument", ["${selection}", "${data.selected.groups}"])
+def test_recipe_selection_follows_component_references(argument: str) -> None:
+    groups = {"overall": [], "subject": ["${late_value}"]}
+    result = resolve_recipe_argument_interpolation({
+        "dataset": {"groups": groups},
+        "data": {"selected": "${dataset}"},
+        "selection": "${data.selected.groups}",
+        "job": {"_recipe_": "argument", "value": argument},
+    })
+    # Follow the selected mapping without resolving its late-bound contents.
+    assert result["job"]["value"] == groups
+
+
+def test_recipe_selection_retains_environment_and_indexed_references() -> None:
+    result = resolve_recipe_argument_interpolation({
+        "values": ["${oc.env:EXAMPLE_VALUE}"],
+        "selected": "${values}",
+        "job": {"_recipe_": "argument", "value": "${selected[0]}"},
+    })
+    assert result["job"]["value"] == "${oc.env:EXAMPLE_VALUE}"
+
+
+@pytest.mark.parametrize("value", ["${selected}", "${selected.child}"])
+def test_recipe_selection_reports_reference_cycles(value: str) -> None:
+    with pytest.raises(ConfigInterpolationError) as caught:
+        resolve_recipe_argument_interpolation({
+            "selected": "${other}", "other": value,
+            "job": {"_recipe_": "argument", "value": "${selected}"},
+        })
+    assert caught.value.context.code == "recipe_argument_interpolation_cycle"

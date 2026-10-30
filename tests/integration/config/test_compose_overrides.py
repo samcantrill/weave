@@ -315,3 +315,12 @@ def test_environment_resolution_follows_overlay_and_override_order(tmp_path: Pat
         base, overlays=(overlay,), overrides=("value=${oc.env:VALUE}",), environment={"VALUE": "final"},
     )
     assert result.resolved["value"] == "final"
+
+
+def test_complete_include_selection_replaces_a_reference_without_mutating_its_owner(tmp_path: Path) -> None:
+    base = tmp_path / "base.yaml"
+    base.write_text("shared: {old_argument: 1}\ncomponent: ${shared}\n")
+    (tmp_path / "replacement.yaml").write_text("new_argument: 2\n")
+    result = compose_config(base, overrides=("component._include_=./replacement.yaml",))
+    assert result.resolved["component"] == {"new_argument": 2}
+    assert result.resolved["shared"] == {"old_argument": 1}
