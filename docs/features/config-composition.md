@@ -32,6 +32,25 @@ when ordered overlays customize or add fields. Those overlays need no
 `_replace_` marker merely to retain that include. An overlay introducing an
 include over an existing mapping still requires same-site `_replace_: true`.
 
+## Component references and selection
+
+A component may default to a shared declaration, for example
+`prediction.dataset: ${training.dataset}`. An explicit
+`prediction.dataset._include_=./datasets/other.yaml` replaces that reference
+with the complete included mapping. It does not modify the shared owner or
+retain constructor arguments from the former selection. Because the reference
+has no include directory of its own, this operation requires an explicit
+relative, absolute or file target, anchored to the entry document. Adding a new
+include still uses `+`; updating an ordinary non-include mapping is unchanged.
+
+Recipe arguments follow chains of plain configuration references, including
+references to mapping parents and indexed lists. This permits a recipe argument
+such as `${evaluation.groups}` to select `${prediction.dataset.groups}` through
+the shared dataset reference. Cycles raise `ConfigInterpolationError`. The
+selected mapping's contents remain late-bound, and environment expressions are
+left for ordinary final interpolation. This step neither evaluates environment
+resolvers nor expands recipes early.
+
 ## Public API
 
 ```python

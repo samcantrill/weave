@@ -198,9 +198,28 @@ def _to_plain_output(value: Any) -> Any:
     return to_plain_data(value, path="$")
 
 
-def _lookup_interpolation_token(token: str, *, root: Mapping[str, Any], path: str) -> Any:
+def _lookup_interpolation_token(
+    token: str, *, root: Mapping[str, Any], path: str, active_tokens: tuple[str, ...] = ()
+) -> Any:
     token = token.strip()
+    if token in active_tokens:
+        _raise_recipe_argument_interpolation_error(
+            f"Cyclic recipe argument selection at {path}",
+            code="recipe_argument_interpolation_cycle",
+            path=path,
+            token=token,
+        )
+    active_tokens = (*active_tokens, token)
     current: Any = root
+
+    def follow_selection(value: Any) -> Any:
+        if isinstance(value, str):
+            match = _INTERPOLATION_RE.fullmatch(value)
+            if match and ":" not in match[1]:
+                return _lookup_interpolation_token(
+                    match[1], root=root, path=path, active_tokens=active_tokens
+                )
+        return value
 
     for segment in token.split("."):
         if not segment:
@@ -235,6 +254,7 @@ def _lookup_interpolation_token(token: str, *, root: Mapping[str, Any], path: st
             )
 
         name = match.group("name")
+        current = follow_selection(current)
         if not isinstance(current, Mapping):
             _raise_recipe_argument_interpolation_error(
                 f"Cannot resolve interpolation token {token!r} at {path}: {name!r} is not a mapping",
@@ -258,6 +278,7 @@ def _lookup_interpolation_token(token: str, *, root: Mapping[str, Any], path: st
 
         current = current[name]
         for index_text in re.findall(r"\[([0-9]+)\]", match.group("indices")):
+            current = follow_selection(current)
             index = int(index_text)
             if not isinstance(current, list):
                 _raise_recipe_argument_interpolation_error(
@@ -283,7 +304,7 @@ def _lookup_interpolation_token(token: str, *, root: Mapping[str, Any], path: st
                 )
             current = current[index]
 
-    return current
+    return follow_selection(current)
 
 
 def _raise_recipe_argument_interpolation_error(

@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import cast
+from typing import Any, cast
 
 from .plain import PlainData, to_plain_data
 
@@ -722,7 +722,8 @@ def _apply_user_composition_overrides(
         include_record = include_record_by_path.get(include_site_path)
 
         if include_record is None:
-            if override.operation != "add":
+            selected_reference = _is_selection_reference(staged, include_site_path[:-1])
+            if override.operation != "add" and not selected_reference:
                 raise _user_composition_error(
                     "Cannot update non-existent include site.",
                     code="missing_include_site",
@@ -740,6 +741,7 @@ def _apply_user_composition_overrides(
                 include_site_path=include_site_path,
                 base_source=base_source,
                 raw_source_texts=raw_source_texts,
+                replace_reference=selected_reference and override.operation != "add",
             )
             user_include_records.extend(include_records)
             continue
@@ -825,6 +827,15 @@ def _replace_existing_include_site(
     return staged, include_records
 
 
+def _is_selection_reference(config: Mapping[str, Any], path: ConfigPath) -> bool:
+    value: Any = config
+    for segment in path:
+        if not isinstance(value, Mapping) or segment not in value:
+            return False
+        value = value[segment]
+    return isinstance(value, str) and re.fullmatch(r"\$\{[^{}:]+\}", value) is not None
+
+
 def _add_brand_new_include_site(
     config: dict[str, PlainData],
     *,
@@ -832,6 +843,7 @@ def _add_brand_new_include_site(
     include_site_path: ConfigPath,
     base_source: ConfigSource,
     raw_source_texts: dict[str, str] | None,
+    replace_reference: bool = False,
 ) -> tuple[dict[str, PlainData], tuple[IncludeSiteRecord, ...]]:
     authored_target = _as_include_target(
         include_override,
@@ -864,7 +876,7 @@ def _add_brand_new_include_site(
         override=include_override,
         allow_create=True,
     )
-    if key in parent:
+    if key in parent and not replace_reference:
         raise _user_composition_error(
             "Cannot add a new include at an existing concrete include site parent.",
             code="existing_include_container",
