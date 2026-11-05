@@ -2,11 +2,11 @@
   "fingerprint_records": [
     {
       "algorithm": "sha256",
-      "digest": "sha256:102861b012f9d1c64a2aafe6c065b15cf9b9f8b64a8e0f568c7e6acb4e80253d",
+      "digest": "sha256:425682e2644252869989314e2d9ea6c7598079c860e2b0760c3a85da636a764a",
       "label": "artifact_safe_config",
       "metadata": {
         "artifact_schema_version": 1,
-        "fingerprint_policy": "artifact_safe_authored_composition_v1",
+        "fingerprint_policy": "artifact_safe_authored_composition_v2",
         "include_facts": [
           {
             "authored_target": "include.yaml",
@@ -46,7 +46,7 @@
           }
         ],
         "override_count": 2,
-        "payload_schema_version": 1,
+        "payload_schema_version": 2,
         "raw_source_bytes_included": false,
         "recipe_manifest": [
           {
@@ -64,22 +64,106 @@
         ],
         "recipe_manifest_count": 1,
         "redacted": {
-          "name": "golden-phase23-base",
-          "pipeline": {
-            "extra": "from-overrides",
-            "model": {
-              "autoreload": true,
-              "kind": "from-include"
-            },
-            "recipe_node": {
-              "annotation": "original:base",
-              "value": "base"
-            },
-            "settings": {
-              "batch_size": 16,
-              "mode": "override",
-              "token": "***REDACTED***"
-            }
+          "schema": "weave.ordered-config.v1",
+          "value": {
+            "items": [
+              [
+                "name",
+                {
+                  "kind": "scalar",
+                  "value": "golden-phase23-base"
+                }
+              ],
+              [
+                "pipeline",
+                {
+                  "items": [
+                    [
+                      "model",
+                      {
+                        "items": [
+                          [
+                            "kind",
+                            {
+                              "kind": "scalar",
+                              "value": "from-include"
+                            }
+                          ],
+                          [
+                            "autoreload",
+                            {
+                              "kind": "scalar",
+                              "value": true
+                            }
+                          ]
+                        ],
+                        "kind": "mapping"
+                      }
+                    ],
+                    [
+                      "settings",
+                      {
+                        "items": [
+                          [
+                            "token",
+                            {
+                              "kind": "scalar",
+                              "value": "***REDACTED***"
+                            }
+                          ],
+                          [
+                            "mode",
+                            {
+                              "kind": "scalar",
+                              "value": "override"
+                            }
+                          ],
+                          [
+                            "batch_size",
+                            {
+                              "kind": "scalar",
+                              "value": 16
+                            }
+                          ]
+                        ],
+                        "kind": "mapping"
+                      }
+                    ],
+                    [
+                      "recipe_node",
+                      {
+                        "items": [
+                          [
+                            "annotation",
+                            {
+                              "kind": "scalar",
+                              "value": "original:base"
+                            }
+                          ],
+                          [
+                            "value",
+                            {
+                              "kind": "scalar",
+                              "value": "base"
+                            }
+                          ]
+                        ],
+                        "kind": "mapping"
+                      }
+                    ],
+                    [
+                      "extra",
+                      {
+                        "kind": "scalar",
+                        "value": "from-overrides"
+                      }
+                    ]
+                  ],
+                  "kind": "mapping"
+                }
+              ]
+            ],
+            "kind": "mapping"
           }
         },
         "redaction_policy": {
@@ -158,22 +242,106 @@
           }
         ],
         "unresolved": {
-          "name": "golden-phase23-base",
-          "pipeline": {
-            "extra": "from-overrides",
-            "model": {
-              "autoreload": true,
-              "kind": "from-include"
-            },
-            "recipe_node": {
-              "annotation": "original:base",
-              "value": "base"
-            },
-            "settings": {
-              "batch_size": 16,
-              "mode": "override",
-              "token": "***REDACTED***"
-            }
+          "schema": "weave.ordered-config.v1",
+          "value": {
+            "items": [
+              [
+                "name",
+                {
+                  "kind": "scalar",
+                  "value": "golden-phase23-base"
+                }
+              ],
+              [
+                "pipeline",
+                {
+                  "items": [
+                    [
+                      "model",
+                      {
+                        "items": [
+                          [
+                            "kind",
+                            {
+                              "kind": "scalar",
+                              "value": "from-include"
+                            }
+                          ],
+                          [
+                            "autoreload",
+                            {
+                              "kind": "scalar",
+                              "value": true
+                            }
+                          ]
+                        ],
+                        "kind": "mapping"
+                      }
+                    ],
+                    [
+                      "settings",
+                      {
+                        "items": [
+                          [
+                            "token",
+                            {
+                              "kind": "scalar",
+                              "value": "***REDACTED***"
+                            }
+                          ],
+                          [
+                            "mode",
+                            {
+                              "kind": "scalar",
+                              "value": "override"
+                            }
+                          ],
+                          [
+                            "batch_size",
+                            {
+                              "kind": "scalar",
+                              "value": 16
+                            }
+                          ]
+                        ],
+                        "kind": "mapping"
+                      }
+                    ],
+                    [
+                      "recipe_node",
+                      {
+                        "items": [
+                          [
+                            "annotation",
+                            {
+                              "kind": "scalar",
+                              "value": "original:base"
+                            }
+                          ],
+                          [
+                            "value",
+                            {
+                              "kind": "scalar",
+                              "value": "base"
+                            }
+                          ]
+                        ],
+                        "kind": "mapping"
+                      }
+                    ],
+                    [
+                      "extra",
+                      {
+                        "kind": "scalar",
+                        "value": "from-overrides"
+                      }
+                    ]
+                  ],
+                  "kind": "mapping"
+                }
+              ]
+            ],
+            "kind": "mapping"
           }
         }
       },
@@ -183,7 +351,7 @@
   "metadata": {
     "artifact_schema_version": 1,
     "fingerprint": {
-      "artifact_fingerprint": "sha256:102861b012f9d1c64a2aafe6c065b15cf9b9f8b64a8e0f568c7e6acb4e80253d",
+      "artifact_fingerprint": "sha256:425682e2644252869989314e2d9ea6c7598079c860e2b0760c3a85da636a764a",
       "default_fingerprint_label": "artifact_safe_config",
       "fingerprint_record_count": 1,
       "resolved_runtime_fingerprint_included": false

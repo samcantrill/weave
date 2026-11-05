@@ -542,11 +542,33 @@ def _expand_including_mapping(
 
     merged = merge_configs(
         included_mapping,
-        local_expanded,
+        _include_overlay_replacements(
+            included_mapping, local_expanded, container_path, replacement_sites
+        ),
         path=format_config_path(container_path),
     )
 
     return merged
+
+
+def _include_overlay_replacements(
+    base: Mapping[str, PlainData],
+    local: Mapping[str, PlainData],
+    path: ConfigPath,
+    replacement_sites: tuple[ConfigPath, ...],
+) -> dict[str, PlainData]:
+    """Retain replacements consumed before the included base was expanded."""
+    overlay = dict(local)
+    for key, value in local.items():
+        previous = base.get(key)
+        if not isinstance(previous, dict) or not isinstance(value, dict):
+            continue
+        child_path = path + (key,)
+        if child_path in replacement_sites:
+            overlay[key] = {"_replace_": True, **value}
+        else:
+            overlay[key] = _include_overlay_replacements(previous, value, child_path, replacement_sites)
+    return overlay
 
 
 def _raise_unconsumed_included_replace_marker_error(
@@ -1106,9 +1128,14 @@ def _validate_include_site_path(
         )
 
     for segment in include_site_path[:-1]:
+        if type(segment) is int and segment >= 0:
+            # Explicit paths are relative to their source file, not the
+            # configuration address. Bare-name resolution checks its own
+            # mapping-only directory derivation separately.
+            continue
         if not isinstance(segment, str):
             raise _include_error(
-                "Include-site path may not contain index segments for bare-name resolution.",
+                "Include-site path requires mapping keys or non-negative list indexes.",
                 code="invalid_include_site",
                 source=source,
                 include_site_path=include_site_path,

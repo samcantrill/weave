@@ -10,6 +10,11 @@ from .__version__ import __version__
 from .errors import ConfigError
 
 if TYPE_CHECKING:
+    from .ordered import (
+        encode_ordered_config,
+        decode_ordered_config,
+        ordered_config_fingerprint,
+    )
     from .api import (
         ARTIFACT_SAFE_FINGERPRINT_LABEL,
         ARTIFACT_SAFE_FINGERPRINT_POLICY,
@@ -50,6 +55,9 @@ _RESOLVED_SYMBOLS: dict[str, object] = {
 }
 _OPTIONAL_SYMBOLS: Final = frozenset(
     {
+        "encode_ordered_config",
+        "decode_ordered_config",
+        "ordered_config_fingerprint",
         "ComposedConfig",
         "ConfigEntrypoint",
         "ConfigCompositionInspection",
@@ -86,6 +94,10 @@ _OPTIONAL_SYMBOLS: Final = frozenset(
 
 def _resolve_optional_symbol(name: str) -> object:
     match name:
+        case "encode_ordered_config" | "decode_ordered_config" | "ordered_config_fingerprint":
+            from . import ordered
+
+            return getattr(ordered, name)
         case "instantiate":
             from .instantiate.recursive import instantiate as _instantiate
 
@@ -167,6 +179,9 @@ if not isinstance(_module, _WeavePackage):
     _module.__class__ = _WeavePackage
 
 __all__ = [
+    "encode_ordered_config",
+    "decode_ordered_config",
+    "ordered_config_fingerprint",
     "__version__",
     "ConfigError",
     "ComposedConfig",

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from .digests import hash_mapping
 from .plain import PlainData, ensure_plain_data, to_plain_data
+from .ordered import encode_ordered_config
 
 from .artifacts import (
     SCHEMA_VERSION as ARTIFACT_SCHEMA_VERSION,
@@ -35,8 +36,8 @@ FingerprintComparisonStatus = Literal[
 ]
 
 ARTIFACT_SAFE_FINGERPRINT_LABEL = "artifact_safe_config"
-ARTIFACT_SAFE_FINGERPRINT_POLICY = "artifact_safe_authored_composition_v1"
-ARTIFACT_SAFE_FINGERPRINT_PAYLOAD_VERSION = 1
+ARTIFACT_SAFE_FINGERPRINT_POLICY = "artifact_safe_authored_composition_v2"
+ARTIFACT_SAFE_FINGERPRINT_PAYLOAD_VERSION = 2
 ARTIFACT_SAFE_RUNTIME_REPLAY = "unavailable"
 
 
@@ -96,8 +97,8 @@ def build_artifact_safe_config_fingerprint_payload(
         "include_overrides": [_override_fact(override) for override in include_overrides],
         "ordinary_overrides": [_override_fact(override) for override in ordinary_overrides],
         "recipe_manifest": recipe_manifest_payload,
-        "unresolved": cast(dict[str, PlainData], to_plain_data(redacted, path="unresolved")),
-        "redacted": cast(dict[str, PlainData], to_plain_data(redacted, path="redacted")),
+        "unresolved": encode_ordered_config(redacted),
+        "redacted": encode_ordered_config(redacted),
         "redaction_policy": redaction_policy,
     }
     return cast(dict[str, PlainData], to_plain_data(payload, path="artifact_safe_fingerprint_payload"))

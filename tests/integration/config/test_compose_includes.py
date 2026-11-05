@@ -1,13 +1,35 @@
 """Integration checks for file-authored config include composition."""
 
 from pathlib import Path
+import json
 from typing import cast
 
 import pytest
 
 from weave import compose_config
+from weave import instantiate
+from weave.digests import hash_mapping
+from weave.json import stable_json_dumps
 from weave.errors import ConfigIncludeExpansionError, ConfigIncludeResolutionError, ConfigLoadError
 from weave.plain import PlainData
+
+
+def test_nested_list_includes_preserve_order_duplicates_and_identity(tmp_path: Path) -> None:
+    """Includes, references, construction and canonical transport retain sequence order."""
+    (tmp_path / "z.yaml").write_text("_target_: builtins.str\n_args_: [z]\n")
+    (tmp_path / "a.yaml").write_text("_target_: builtins.str\n_args_: [a]\n")
+    (tmp_path / "nested.yaml").write_text(
+        "steps:\n  - _include_: ./z.yaml\n  - _include_: ./a.yaml\n  - _include_: ./z.yaml\n"
+    )
+    base = tmp_path / "base.yaml"
+    base.write_text("groups:\n  - _include_: ./nested.yaml\nselected: ${groups.0.steps}\n")
+    composed = compose_config(base).resolved
+    delivered = json.loads(stable_json_dumps(composed))
+    assert instantiate(delivered["selected"]) == ["z", "a", "z"]
+    assert delivered["groups"][0]["steps"] == delivered["selected"]
+    changed = dict(delivered)
+    changed["selected"] = [delivered["selected"][1], *delivered["selected"][::2]]
+    assert hash_mapping(changed) != hash_mapping(delivered)
 
 
 def _model_mapping(config: dict[str, PlainData]) -> dict[str, PlainData]:

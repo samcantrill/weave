@@ -3,6 +3,43 @@
 `weave` composes trusted project configuration into deterministic plain data and
 auditable records.
 
+## Ordered configuration sequences
+
+YAML lists are ordered: composition, includes, references, instantiation and
+canonical JSON serialization preserve element order and duplicates. Reordering
+elements changes the resolved-value fingerprint. Overlays replace a list with
+the overlay's declared list; they do not sort or deduplicate its elements.
+Use lists for executable enumerations such as preprocessing steps and branches.
+
+List elements may contain explicit relative `_include_` paths, including nested
+lists. Those paths resolve relative to the file that authors the include. Bare
+include names derive a directory from mapping keys and remain unsupported at
+indexed list addresses; use `./fragment.yaml` there.
+
+Mappings also retain their declared order. Updating an existing key keeps its
+position, new overlay keys append in overlay order, and `_replace_: true` uses
+the replacement's declared order. These rules apply recursively to nested
+includes and interpolated references.
+
+Use `encode_ordered_config` before passing a configuration through canonical
+JSON, and `decode_ordered_config` in the consuming process. The
+`weave.ordered-config.v1` envelope represents mappings as ordered key/value
+pairs, sequences as arrays, and scalars as tagged values. It preserves named
+mapping syntax without relying on the JSON object key order. Re-encode before
+crossing another serialization boundary; ordinary `stable_json_dumps` still
+sorts protocol and metadata keys. Legacy plain mappings are not silently
+converted on read because their original order may already be lost.
+
+```python
+from weave import encode_ordered_config, decode_ordered_config
+from weave.json import stable_json_dumps, json_loads
+
+authored = {"parts": {"reconstruction": {}, "detrending": {}}}
+wire = stable_json_dumps(encode_ordered_config(authored))
+received = decode_ordered_config(json_loads(wire))
+assert list(received["parts"]) == ["reconstruction", "detrending"]
+```
+
 ## Supported Behavior
 
 - YAML loading with duplicate-key, recursive-alias, unsupported-directive, and
